@@ -11,16 +11,16 @@ Built for traders and developers who need reliable alerting without managing inf
 
 ## Features
 
-- ✅ RESTful API with 9 endpoints
-- ✅ 4 rule types (price threshold, percent move, candle close, MACD cross)
-- ✅ Idempotent alert delivery with database-level deduplication
-- ✅ Exponential backoff retry mechanism (max 5 attempts, 32s delay)
-- ✅ Delivery attempt audit trail with latency tracking
-- ✅ Health checks and metrics endpoints
-- ✅ Comprehensive test suite (58+ tests)
-- ✅ Docker Compose setup for local development
-- ✅ CI/CD pipeline with GitHub Actions
-- ✅ Structured JSON logging
+- RESTful API with 9 endpoints
+- 4 rule types (price threshold, percent move, candle close, MACD cross)
+- Idempotent alert delivery with database-level deduplication
+- Exponential backoff retry mechanism (max 5 attempts, 32s delay)
+- Delivery attempt audit trail with latency tracking
+- Health checks and metrics endpoints
+- Comprehensive test suite (58+ tests)
+- Docker Compose setup for local development
+- CI/CD pipeline with GitHub Actions
+- Structured JSON logging
 
 ## Tech Stack
 
