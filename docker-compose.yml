@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulse_postgres
+    environment:
+      POSTGRES_USER: pulse_user
+      POSTGRES_PASSWORD: pulse_password
+      POSTGRES_DB: pulse_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulse_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: pulse_api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pulse_user:pulse_password@postgres:5432/pulse_db
+      API_KEY: ${API_KEY:-default-api-key-change-me}
+      API_HOST: 0.0.0.0
+      API_PORT: 8000
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./api:/app/api
+      - ./db:/app/db
+      - ./core:/app/core
+    restart: unless-stopped
+    command: ["./entrypoint_api.sh"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: pulse_worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://pulse_user:pulse_password@postgres:5432/pulse_db
+      WORKER_ID: ${WORKER_ID:-worker-1}
+      HYPERLIQUID_WS_URL: ${HYPERLIQUID_WS_URL:-wss://api.hyperliquid.xyz/ws}
+      HYPERLIQUID_REST_URL: ${HYPERLIQUID_REST_URL:-https://api.hyperliquid.xyz}
+      SYMBOLS: ${SYMBOLS:-BTC,ETH}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_started
+    volumes:
+      - ./worker:/app/worker
+      - ./db:/app/db
+      - ./core:/app/core
+    restart: on-failure
+    command: ["./entrypoint_worker.sh"]
+
+volumes:
+  postgres_data:
+
