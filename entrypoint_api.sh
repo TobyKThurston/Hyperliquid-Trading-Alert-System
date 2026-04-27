@@ -35,7 +35,7 @@ except ImportError:
 " || exit 1
 
 echo "Running database migrations..."
-python -m alembic upgrade head || echo "Migration completed (may have been partially applied)"
+python -m alembic upgrade head
 
 echo "Starting API server..."
 exec uvicorn api.main:app --host 0.0.0.0 --port 8000

@@ -25,15 +25,14 @@ except ImportError:
             "DATABASE_URL", "postgresql+asyncpg://pulse_user:pulse_password@localhost:5432/pulse_db"
         )
 
-# Create async engine
-engine = create_async_engine(
-    DATABASE_URL,
-    echo=False,
-    future=True,
-    pool_pre_ping=True,
-    pool_size=10,
-    max_overflow=20,
-)
+# Create async engine.
+# SQLite (used by the test suite) doesn't accept pool_size/max_overflow —
+# they're only valid for connection-pool dialects like asyncpg.
+_engine_kwargs: dict = {"echo": False, "future": True, "pool_pre_ping": True}
+if not DATABASE_URL.startswith("sqlite"):
+    _engine_kwargs.update(pool_size=10, max_overflow=20)
+
+engine = create_async_engine(DATABASE_URL, **_engine_kwargs)
 
 # Create session factory
 AsyncSessionLocal = async_sessionmaker(

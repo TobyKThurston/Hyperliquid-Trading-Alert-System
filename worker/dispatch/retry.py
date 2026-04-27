@@ -1,5 +1,6 @@
 """Retry scheduler for failed alert deliveries."""
 import asyncio
+import random
 from datetime import datetime, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -9,19 +10,20 @@ from worker.dispatch.discord import send_discord_webhook
 from worker.dispatch.webhook import send_generic_webhook
 from worker.config import settings
 from core.logging import get_logger
+from core.time import utcnow
 
 logger = get_logger(__name__)
 
 
-def calculate_backoff(attempts: int) -> int:
-    """Calculate exponential backoff: 2^(attempts-1) seconds, max 32s."""
-    return min(2 ** (attempts - 1), 32)
+def calculate_backoff(attempts: int) -> float:
+    """Exponential backoff with up to 50% jitter, capped at 32s base."""
+    base = min(2 ** (attempts - 1), 32)
+    return base + random.uniform(0, base * 0.5)
 
 
 async def process_pending_alerts() -> None:
     """Process pending alerts with exponential backoff retry."""
     async with AsyncSessionLocal() as db:
-        now = datetime.utcnow()
         result = await db.execute(
             select(Alert)
             .where(
@@ -34,6 +36,7 @@ async def process_pending_alerts() -> None:
         alerts = result.scalars().all()
 
         for alert in alerts:
+            now = utcnow()
             if alert.last_delivery_attempt:
                 backoff_seconds = calculate_backoff(alert.delivery_attempts)
                 next_attempt_time = alert.last_delivery_attempt + timedelta(
@@ -56,7 +59,7 @@ async def process_pending_alerts() -> None:
             alert.delivery_attempts += 1
             alert.last_delivery_attempt = now
             attempt_no = alert.delivery_attempts
-            start_time = datetime.utcnow()
+            start_time = utcnow()
 
             attempt = AlertDeliveryAttempt(
                 alert_id=alert.id,
@@ -83,7 +86,7 @@ async def process_pending_alerts() -> None:
                 error = str(e)
                 logger.error("retry_delivery_exception", alert_id=str(alert.id), error=str(e))
 
-            end_time = datetime.utcnow()
+            end_time = utcnow()
             latency_ms = int((end_time - start_time).total_seconds() * 1000)
             attempt.status = "success" if success else "failed"
             attempt.response_code = response_code

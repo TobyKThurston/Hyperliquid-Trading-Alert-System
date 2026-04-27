@@ -4,7 +4,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.schema import UniqueConstraint
 from db.base import Base
 import uuid
-from datetime import datetime
+
+from core.time import utcnow
 
 
 class WorkerCursor(Base):
@@ -16,7 +17,7 @@ class WorkerCursor(Base):
     worker_id = Column(String, nullable=False)
     symbol = Column(String, nullable=False)
     last_processed_timestamp = Column(DateTime, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=utcnow, onupdate=utcnow, nullable=False)
 
     # Unique constraint: one cursor per worker/symbol
     __table_args__ = (UniqueConstraint("worker_id", "symbol", name="uq_worker_cursor"),)

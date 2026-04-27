@@ -1,8 +1,9 @@
 """Integration tests for candles API."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from db.models import Candle
+from core.time import utcnow
 
 
 @pytest.mark.asyncio
@@ -31,7 +32,7 @@ async def test_get_candles_requires_symbol(test_client):
 async def test_get_candles_filters_by_symbol_interval(test_client, db_session):
     """Test filtering candles by symbol and interval."""
     # Create candles with different symbols and intervals
-    now = datetime.utcnow()
+    now = utcnow()
     
     candle1 = Candle(
         symbol="BTC",
@@ -94,7 +95,7 @@ async def test_get_candles_filters_by_symbol_interval(test_client, db_session):
 async def test_get_candles_respects_order_and_pagination(test_client, db_session):
     """Test ordering and pagination."""
     # Create multiple candles
-    base_time = datetime.utcnow().replace(second=0, microsecond=0)
+    base_time = utcnow().replace(second=0, microsecond=0)
     candles = []
     
     for i in range(5):
@@ -146,7 +147,7 @@ async def test_get_candles_respects_order_and_pagination(test_client, db_session
 @pytest.mark.asyncio
 async def test_get_candles_time_range_filter(test_client, db_session):
     """Test filtering by time range."""
-    base_time = datetime.utcnow().replace(second=0, microsecond=0)
+    base_time = utcnow().replace(second=0, microsecond=0)
     
     # Create candles at different times
     candle1 = Candle(

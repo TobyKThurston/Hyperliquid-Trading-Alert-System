@@ -1,237 +1,256 @@
-# Pulse - Hyperliquid Trading Alert System
+# Pulse — Hyperliquid Trading Alert System
 
 [![CI](https://github.com/TobyKThurston/Hyperliquid-Trading-Alert-System/actions/workflows/ci.yml/badge.svg)](https://github.com/TobyKThurston/Hyperliquid-Trading-Alert-System/actions/workflows/ci.yml)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Backend service for Hyperliquid price alerts. Polls market data, evaluates rules, and sends notifications via Discord webhooks.
+Production-grade backend for Hyperliquid price alerts. Streams market data, evaluates user-defined rules, and delivers alerts via Discord and generic webhooks — with database-level idempotency, exponential-backoff retry, and a full delivery-attempt audit trail.
 
-Built for traders and developers who need reliable alerting without managing infrastructure.
+Built to demonstrate the engineering side of trading infrastructure: durability, exactly-once delivery semantics, and observability — not just "if price > X, send a message".
 
-## Features
+---
 
-- RESTful API with 9 endpoints
-- 4 rule types (price threshold, percent move, candle close, MACD cross)
-- Idempotent alert delivery with database-level deduplication
-- Exponential backoff retry mechanism (max 5 attempts, 32s delay)
-- Delivery attempt audit trail with latency tracking
-- Health checks and metrics endpoints
-- Comprehensive test suite (58+ tests)
-- Docker Compose setup for local development
-- CI/CD pipeline with GitHub Actions
-- Structured JSON logging
+## Highlights
+
+- **6 rule types** — price threshold, percent move, candle close, MACD crossover, RSI bands, Bollinger band touch/break
+- **Exactly-once alerting** — Postgres unique constraint on `(rule_id, window_start, window_end)` makes duplicate alerts impossible even with concurrent workers
+- **Resilient delivery** — exponential backoff (max 5 attempts, capped at 32s), background retry scheduler, per-attempt latency + response-code audit trail
+- **Two ingest modes** — primary WebSocket stream with auto-reconnect and REST gap-backfill, plus a REST-poll fallback for rollback
+- **Auth + rate limiting** — SHA-256 hashed DB-backed API keys (raw key shown once at creation) plus Redis fixed-window rate limiting that fails open on outage
+- **10 REST endpoints** with OpenAPI docs at `/docs`
+- **46 tests passing** — unit + integration, in-memory SQLite, zero deprecation warnings on Python 3.13
 
 ## Tech Stack
 
-- **API**: FastAPI, Pydantic v2
-- **Database**: PostgreSQL 16, SQLAlchemy 2.0, Alembic
-- **Worker**: Python 3.12, asyncio
-- **Testing**: pytest, pytest-asyncio
-- **Infrastructure**: Docker, Docker Compose
-- **CI/CD**: GitHub Actions
-- **Code Quality**: ruff
+| Layer            | Tech                                                  |
+| ---------------- | ----------------------------------------------------- |
+| API              | FastAPI, Pydantic v2, async SQLAlchemy 2.0            |
+| Database         | PostgreSQL 16, Alembic migrations                     |
+| Cache / limiter  | Redis 7                                               |
+| Worker           | Python 3.12+ asyncio, `websockets`, `httpx`           |
+| Testing          | pytest, pytest-asyncio, aiosqlite                     |
+| Infrastructure   | Docker Compose, GitHub Actions                        |
+| Observability    | structlog (JSON logs), `/metrics` endpoint            |
+
+## Architecture
+
+```
+                                  ┌────────────────────────────┐
+   Hyperliquid WS  ─────────►     │  worker (asyncio)          │
+       (live candles)              │                            │
+                                  │  ingest → evaluate → dispatch
+                                  │     │        │         │
+       Hyperliquid REST  ◄────────┤  (gap-      (rule      (Discord +
+       (gap-backfill / fallback)   │   backfill)  registry)  generic webhook)
+                                  └─────┬─────────────┬──────────┘
+                                        │             │
+                                        ▼             ▼
+                                  ┌──────────┐   ┌──────────┐
+                                  │ Postgres │   │ Redis    │
+                                  │ candles  │   │ ratelim  │
+                                  │ rules    │   └────▲─────┘
+                                  │ alerts   │        │
+                                  │ attempts │        │
+                                  │ api_keys │        │
+                                  └────▲─────┘        │
+                                       │              │
+                                  ┌────┴──────────────┴──────┐
+                                  │ FastAPI                  │
+                                  │ (CRUD rules, list alerts │
+                                  │  + delivery attempts,    │
+                                  │  query candles)          │
+                                  └──────────────────────────┘
+```
+
+See [`docs/architecture.md`](docs/architecture.md) for the long version.
 
 ## Project Structure
 
 ```
 hyperliquidalert/
-├── api/              # FastAPI application
-│   ├── routes/       # API endpoints
-│   ├── models/       # Pydantic models
-│   └── middleware/   # Auth middleware
-├── worker/           # Background worker service
-│   ├── ingest/       # Data ingestion
-│   ├── evaluate/     # Rule evaluation engine
-│   └── dispatch/     # Alert delivery
-├── db/               # Database models and migrations
-├── core/             # Shared utilities (logging, exceptions)
-├── tests/            # Test suite (unit + integration)
-├── docs/             # Documentation
+├── api/                # FastAPI service
+│   ├── routes/         # Endpoint handlers
+│   ├── models/         # Pydantic request/response models
+│   ├── middleware/     # API key auth + rate-limit hop
+│   └── ratelimit.py    # Redis fixed-window limiter
+├── worker/             # Async worker service
+│   ├── ingest/         # Hyperliquid WS + REST client
+│   ├── evaluate/       # Rule registry + indicators (RSI, MACD, BB)
+│   └── dispatch/       # Webhook senders + retry scheduler
+├── db/                 # SQLAlchemy models + Alembic migrations
+├── core/               # Cross-cutting helpers (logging, time, exceptions)
+├── tests/              # unit + integration suites
+├── scripts/            # Operational scripts (e.g. create_api_key.py)
+├── docs/               # Architecture, runbook, API reference
 └── docker-compose.yml
 ```
-
-## How It Works
-
-1. Worker polls Hyperliquid `/info` endpoint every 60 seconds
-2. New candles are saved to PostgreSQL
-3. Rules matching the candle symbol are evaluated
-4. If a rule triggers, an alert is created (enforced idempotency)
-5. Alert is dispatched via webhook, with retries on failure
-
-See [docs/architecture.md](docs/architecture.md) for details.
 
 ## Quickstart
 
 ```bash
-# 1. Clone and setup
 git clone https://github.com/TobyKThurston/Hyperliquid-Trading-Alert-System.git
 cd Hyperliquid-Trading-Alert-System
-cp .env.example .env
-# Edit .env with your API_KEY
+cp .env.example .env          # set API_KEY (admin) and any overrides
 
-# 2. Start services
-docker-compose up -d
-
-# 3. Verify health
+docker-compose up -d           # postgres + redis + api + worker
 curl http://localhost:8000/health
-
-# 4. Check API docs
 open http://localhost:8000/docs
 ```
 
-Migrations run automatically on API startup. See [docs/local-dev.md](docs/local-dev.md) for detailed setup.
+Migrations run automatically on API startup (`entrypoint_api.sh`). See [`docs/local-dev.md`](docs/local-dev.md) for the full setup.
+
+## Authentication & Rate Limiting
+
+Two ways to authenticate write requests via the `X-API-Key` header:
+
+1. **Admin key** — value of the `API_KEY` env var. Bypasses the DB lookup and uses a higher rate-limit ceiling (`ADMIN_RATE_LIMIT_PER_MINUTE`, default 1000/min). For development and operational scripts.
+2. **DB-backed keys** — created with `scripts/create_api_key.py`, stored as SHA-256 hashes. The raw key is printed exactly once and discarded; a leaked DB dump can't be replayed.
+
+```bash
+docker-compose exec api python scripts/create_api_key.py "prod-dashboard" --rpm 120
+# id:   3c1f...
+# key:  pk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# Save the key now — it cannot be retrieved later.
+```
+
+Read endpoints (`GET`/`HEAD`/`OPTIONS`) and the public paths (`/health`, `/metrics`, `/docs`, `/openapi.json`, `/redoc`) skip auth. Authenticated requests are rate-limited per key in Redis. If Redis is unreachable, the limiter **fails open** — a rate-limit outage doesn't take down the API.
 
 ## API
 
-Full API reference: [docs/api.md](docs/api.md)
+10 endpoints. Full reference: [`docs/api.md`](docs/api.md).
 
-**Create a rule:**
+| Method | Path                                  | Purpose                                    |
+| ------ | ------------------------------------- | ------------------------------------------ |
+| GET    | `/health`                             | Liveness probe                             |
+| GET    | `/metrics`                            | Active rules, pending alerts, db status    |
+| POST   | `/api/v1/rules`                       | Create a rule (validated per `rule_type`)  |
+| GET    | `/api/v1/rules`                       | List rules                                 |
+| GET    | `/api/v1/rules/{rule_id}`             | Get one rule                               |
+| PUT    | `/api/v1/rules/{rule_id}`             | Update a rule                              |
+| DELETE | `/api/v1/rules/{rule_id}`             | Delete a rule                              |
+| GET    | `/api/v1/alerts`                      | List alerts (filter by rule/symbol)        |
+| GET    | `/api/v1/alerts/{alert_id}/deliveries`| Per-attempt delivery audit trail           |
+| GET    | `/api/v1/candles`                     | Query stored OHLCV candles                 |
+
+Example — create a rule:
+
 ```bash
 curl -X POST http://localhost:8000/api/v1/rules \
-  -H "X-API-Key: your-key" \
+  -H "X-API-Key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "BTC Alert",
+    "name": "BTC breakout",
     "rule_type": "price_threshold",
     "symbol": "BTC",
     "config": {"threshold": 50000, "operator": ">="},
-    "discord_webhook_url": "https://discord.com/api/webhooks/..."
+    "discord_webhook_url": "https://discord.com/api/webhooks/...",
+    "cooldown_seconds": 3600
   }'
 ```
 
-**List candles:**
-```bash
-curl "http://localhost:8000/api/v1/candles?symbol=BTC&limit=10"
-```
+## Rule Types
 
-**List alerts:**
-```bash
-curl "http://localhost:8000/api/v1/alerts?symbol=BTC&limit=20"
-```
+All rules accept `cooldown_seconds` (suppress re-fires) and either / both of `discord_webhook_url`, `generic_webhook_url`.
 
-## Rules
-
-### Price Threshold
-
-Triggers when price crosses a threshold.
-
+### Price threshold
 ```json
-{
-  "rule_type": "price_threshold",
-  "config": {
-    "threshold": 50000,
-    "operator": ">="
-  },
-  "cooldown_seconds": 3600
-}
+{ "rule_type": "price_threshold",
+  "config": { "threshold": 50000, "operator": ">=" } }
 ```
 
-### Percent Move
-
-Triggers when price moves by N% within T seconds.
-
+### Percent move
+Triggers when price moves `percent_threshold` % within `window_seconds`.
 ```json
-{
-  "rule_type": "percent_move",
-  "config": {
-    "percent_threshold": 5.0,
-    "window_seconds": 300
-  }
-}
+{ "rule_type": "percent_move",
+  "config": { "percent_threshold": 5.0, "window_seconds": 300 } }
 ```
 
-### Candle Close
-
-Triggers when candle close meets condition.
-
+### Candle close
+Triggers when the closing price of the latest candle meets the condition.
 ```json
-{
-  "rule_type": "candle_close",
-  "config": {
-    "value": 50000,
-    "operator": ">="
-  }
-}
+{ "rule_type": "candle_close",
+  "config": { "value": 50000, "operator": ">=" } }
 ```
 
-### MACD Cross
-
-Triggers on MACD signal line crossover (requires 50+ candles).
-
+### MACD crossover
+Bullish or bearish signal-line cross. Requires ~50+ candles of history.
 ```json
-{
-  "rule_type": "macd_cross",
-  "config": {
-    "fast_period": 12,
-    "slow_period": 26,
-    "signal_period": 9,
-    "crossover_type": "bullish"
-  }
-}
+{ "rule_type": "macd_cross",
+  "config": { "fast_period": 12, "slow_period": 26,
+              "signal_period": 9, "crossover_type": "bullish" } }
 ```
 
-See [docs/api.md](docs/api.md) for all rule types and detailed examples.
+### RSI bands
+Fires only on the bar where RSI **crosses** the threshold (no spam during extended trends).
+```json
+{ "rule_type": "rsi",
+  "config": { "period": 14, "threshold": 70, "direction": "overbought" } }
+```
+
+### Bollinger Bands
+`event: "touch"` fires on the transition bar; `event: "break"` fires while close is beyond the band.
+```json
+{ "rule_type": "bollinger_bands",
+  "config": { "period": 20, "std_dev": 2.0, "band": "upper", "event": "break" } }
+```
+
+## Reliability Design
+
+A few decisions worth calling out — these are why the system holds up under load and partial failure:
+
+- **Idempotency at the database**, not the application. The `uq_alert_window` unique constraint on `(rule_id, window_start, window_end)` serializes concurrent inserts. Two workers seeing the same trigger in the same minute → one alert, no advisory locks needed.
+- **Retry state lives on the alert row.** `delivery_status`, `delivery_attempts`, and `last_delivery_attempt` let the retry scheduler resume work after a crash without losing track of in-flight attempts.
+- **Per-attempt audit trail** in `alert_delivery_attempts` (status, response code, latency_ms, error). Surface-able via `GET /alerts/{id}/deliveries`.
+- **WebSocket gap-backfill.** Reconnects don't lose candles — on every WS reconnect the worker REST-fetches anything closed between the last seen timestamp and the new connection.
+- **Naive-UTC by convention** through `core/time.utcnow()` — all timestamps are produced through one helper, sidestepping `datetime.utcnow()` deprecation and `fromtimestamp()` returning local time.
 
 ## Testing
 
 ```bash
-# Run all tests
-pytest
-
-# With coverage
+pytest                                # 46 tests, ~0.4s
 pytest --cov=. --cov-report=term-missing
-
-# Specific test file
 pytest tests/integration/test_api_candles.py -v
 ```
 
+CI runs the full suite plus `ruff check` on every push (see `.github/workflows/ci.yml`).
+
 ## Observability
 
-**Health endpoint:**
-```bash
-curl http://localhost:8000/health
-```
+- **Structured JSON logs** via structlog — every request, every rule eval, every webhook attempt.
+- `GET /health` — liveness check.
+- `GET /metrics` — active rules count, pending-alerts count, DB connectivity.
+- Logs: `docker-compose logs -f worker` / `docker-compose logs -f api`.
 
-**Metrics endpoint:**
-```bash
-curl http://localhost:8000/metrics
-```
-
-**Logs:**
-- Structured JSON logs (structlog)
-- Worker logs: `docker-compose logs -f worker`
-- API logs: `docker-compose logs -f api`
-
-See [docs/runbook.md](docs/runbook.md) for operations guide.
+See [`docs/runbook.md`](docs/runbook.md) for ops procedures.
 
 ## Security
 
-- Never commit `.env` files
-- Webhook URLs contain authentication tokens - treat as secrets
-- Rotate API keys if exposed
-- See [SECURITY.md](SECURITY.md) for details
+- Never commit `.env` files (gitignored).
+- Webhook URLs contain authentication tokens — treat as secrets.
+- API keys are hashed at rest. The raw key is shown exactly once at creation.
+- Admin key (`API_KEY` env var) bypasses the DB and should be rotated if exposed.
+- See [`SECURITY.md`](SECURITY.md).
 
 ## Documentation
 
-- [Architecture](docs/architecture.md) - System design and data flow
-- [Local Development](docs/local-dev.md) - Setup and workflow
-- [API Reference](docs/api.md) - Endpoints and examples
-- [Runbook](docs/runbook.md) - Operations and troubleshooting
-- [Troubleshooting](docs/troubleshooting.md) - Common issues and fixes
-
-## Contributing
-
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+- [`docs/architecture.md`](docs/architecture.md) — system design and data flow
+- [`docs/api.md`](docs/api.md) — full API reference
+- [`docs/local-dev.md`](docs/local-dev.md) — setup and workflow
+- [`docs/runbook.md`](docs/runbook.md) — ops and on-call
+- [`docs/troubleshooting.md`](docs/troubleshooting.md) — common issues
 
 ## Roadmap
 
-- [ ] WebSocket support for real-time candle streaming
-- [ ] Additional rule types (RSI, Bollinger Bands)
-- [ ] Prometheus metrics export
-- [ ] Rate limiting per API key
-- [ ] Alert delivery webhook history API endpoint
+- [ ] Prometheus metrics export (`prometheus-fastapi-instrumentator` is wired in but custom metrics not yet exposed)
+- [ ] Token-bucket rate limiting (currently fixed-window-per-minute)
+- [ ] Alert delivery retry policy as configuration (currently 5 attempts, 32s cap)
+- [ ] gRPC streaming endpoint for low-latency alert consumption
+
+## Contributing
+
+Contributions welcome. See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+MIT — see [`LICENSE`](LICENSE).

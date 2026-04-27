@@ -1,11 +1,18 @@
 """Rule API models."""
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from typing import Optional, Literal
 from datetime import datetime
 from uuid import UUID
 
 
-RuleType = Literal["price_threshold", "percent_move", "candle_close", "macd_cross"]
+RuleType = Literal[
+    "price_threshold",
+    "percent_move",
+    "candle_close",
+    "macd_cross",
+    "rsi",
+    "bollinger_bands",
+]
 
 
 class RuleCreate(BaseModel):
@@ -48,7 +55,19 @@ class RuleCreate(BaseModel):
                 raise ValueError("macd_cross requires 'crossover_type'")
             if v["crossover_type"] not in ("bullish", "bearish"):
                 raise ValueError("crossover_type must be 'bullish' or 'bearish'")
-        
+        elif rule_type == "rsi":
+            if "direction" not in v:
+                raise ValueError("rsi requires 'direction' ('overbought' or 'oversold')")
+            if v["direction"] not in ("overbought", "oversold"):
+                raise ValueError("direction must be 'overbought' or 'oversold'")
+        elif rule_type == "bollinger_bands":
+            if "band" not in v or "event" not in v:
+                raise ValueError("bollinger_bands requires 'band' and 'event'")
+            if v["band"] not in ("upper", "lower"):
+                raise ValueError("band must be 'upper' or 'lower'")
+            if v["event"] not in ("touch", "break"):
+                raise ValueError("event must be 'touch' or 'break'")
+
         return v
 
 
@@ -78,8 +97,7 @@ class RuleResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class RuleListResponse(BaseModel):

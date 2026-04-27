@@ -4,7 +4,7 @@ import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 import os
 
 # Test database URL (in-memory SQLite for tests)
@@ -28,7 +28,11 @@ TestSessionLocal = async_sessionmaker(
 async def db_session():
     """Create a test database session."""
     from db.base import Base
-    
+    # Ensure every model is registered on Base.metadata before create_all.
+    # Without this import, tables only the FastAPI app ends up using (via the
+    # integration tests) aren't declared yet when we build the schema.
+    import db.models  # noqa: F401
+
     # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -54,7 +58,9 @@ async def test_client(db_session):
     
     app.dependency_overrides[get_db] = override_get_db
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
         yield client
     
     # Cleanup
@@ -69,8 +75,20 @@ def api_key():
 
 @pytest.fixture(autouse=True)
 def set_test_env(api_key, monkeypatch):
-    """Set test environment variables."""
+    """Set test environment variables.
+
+    `api.config.settings` is instantiated at import time — by the time
+    fixtures run, it already holds whatever was in the real `.env`. Setting
+    env vars alone is too late, so we also patch the cached Settings
+    instance directly.
+    """
     monkeypatch.setenv("API_KEY", api_key)
     monkeypatch.setenv("DATABASE_URL", TEST_DATABASE_URL)
     monkeypatch.setenv("LOG_LEVEL", "DEBUG")
+
+    try:
+        from api.config import settings as api_settings
+        monkeypatch.setattr(api_settings, "api_key", api_key)
+    except ImportError:
+        pass
 

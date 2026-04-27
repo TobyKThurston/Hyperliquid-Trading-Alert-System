@@ -1,8 +1,8 @@
 """Integration tests for alerts API."""
 import pytest
-from datetime import datetime
 from decimal import Decimal
 from db.models import Rule, Alert
+from core.time import utcnow
 
 
 @pytest.mark.asyncio
@@ -22,10 +22,10 @@ async def test_list_alerts(test_client, db_session):
         rule_id=rule.id,
         symbol="BTC",
         rule_type="price_threshold",
-        triggered_at=datetime.utcnow(),
+        triggered_at=utcnow(),
         trigger_value=Decimal("50100"),
-        window_start=datetime.utcnow().replace(second=0, microsecond=0),
-        window_end=datetime.utcnow().replace(second=0, microsecond=0),
+        window_start=utcnow().replace(second=0, microsecond=0),
+        window_end=utcnow().replace(second=0, microsecond=0),
         delivery_status="delivered",
     )
     db_session.add(alert)
@@ -63,20 +63,20 @@ async def test_list_alerts_filter_by_rule(test_client, db_session):
         rule_id=rule1.id,
         symbol="BTC",
         rule_type="price_threshold",
-        triggered_at=datetime.utcnow(),
+        triggered_at=utcnow(),
         trigger_value=Decimal("50100"),
-        window_start=datetime.utcnow().replace(second=0, microsecond=0),
-        window_end=datetime.utcnow().replace(second=0, microsecond=0),
+        window_start=utcnow().replace(second=0, microsecond=0),
+        window_end=utcnow().replace(second=0, microsecond=0),
         delivery_status="delivered",
     )
     alert2 = Alert(
         rule_id=rule2.id,
         symbol="ETH",
         rule_type="price_threshold",
-        triggered_at=datetime.utcnow(),
+        triggered_at=utcnow(),
         trigger_value=Decimal("3100"),
-        window_start=datetime.utcnow().replace(second=0, microsecond=0),
-        window_end=datetime.utcnow().replace(second=0, microsecond=0),
+        window_start=utcnow().replace(second=0, microsecond=0),
+        window_end=utcnow().replace(second=0, microsecond=0),
         delivery_status="delivered",
     )
     db_session.add(alert1)

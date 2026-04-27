@@ -1,17 +1,21 @@
 """Rule evaluation engine."""
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from datetime import datetime, timedelta
 from typing import Optional
 from db.models import Rule, Alert
 from worker.ingest.hyperliquid import Candle
 from worker.evaluate.rules import (
-    PriceThresholdRule,
-    PercentMoveRule,
+    BollingerBandsRule,
     CandleCloseRule,
     MACDCrossRule,
+    PercentMoveRule,
+    PriceThresholdRule,
+    RSIRule,
 )
 from core.logging import get_logger
+from core.time import utcnow
 from core.exceptions import InvalidRuleConfigError
 
 logger = get_logger(__name__)
@@ -30,6 +34,8 @@ class RuleEvaluator:
             "percent_move": PercentMoveRule(),
             "candle_close": CandleCloseRule(),
             "macd_cross": MACDCrossRule(),
+            "rsi": RSIRule(),
+            "bollinger_bands": BollingerBandsRule(),
         }
 
     def _get_idempotency_window(self, timestamp: datetime) -> tuple[datetime, datetime]:
@@ -55,20 +61,7 @@ class RuleEvaluator:
             return False
 
         cooldown_end = last_alert.triggered_at + timedelta(seconds=rule.cooldown_seconds)
-        return datetime.utcnow() < cooldown_end
-
-    async def _alert_exists(
-        self, rule_id: str, window_start: datetime, window_end: datetime
-    ) -> bool:
-        """Check if alert already exists for this idempotency window."""
-        result = await self.db.execute(
-            select(Alert).where(
-                Alert.rule_id == rule_id,
-                Alert.window_start == window_start,
-                Alert.window_end == window_end,
-            )
-        )
-        return result.scalar_one_or_none() is not None
+        return utcnow() < cooldown_end
 
     async def _create_alert(
         self,
@@ -77,8 +70,12 @@ class RuleEvaluator:
         window_start: datetime,
         window_end: datetime,
         trigger_value: float,
-    ) -> Alert:
-        """Create alert record in database."""
+    ) -> Optional[Alert]:
+        """Create alert record. Returns None if another worker won the race.
+
+        Relies on the `uq_alert_window` unique constraint
+        (rule_id, window_start, window_end) to serialize concurrent inserts.
+        """
         alert = Alert(
             rule_id=rule.id,
             symbol=candle.symbol,
@@ -89,7 +86,16 @@ class RuleEvaluator:
             window_end=window_end,
             delivery_status="pending",
         )
-        self.db.add(alert)
+        try:
+            async with self.db.begin_nested():
+                self.db.add(alert)
+        except IntegrityError:
+            logger.debug(
+                "alert_idempotency_conflict",
+                rule_id=str(rule.id),
+                window_start=window_start.isoformat(),
+            )
+            return None
         await self.db.commit()
         await self.db.refresh(alert)
         return alert
@@ -103,8 +109,6 @@ class RuleEvaluator:
             return None
 
         window_start, window_end = self._get_idempotency_window(candle.timestamp)
-        if await self._alert_exists(rule.id, window_start, window_end):
-            return None
 
         rule_class = self.rule_classes.get(rule.rule_type)
         if not rule_class:
@@ -118,6 +122,8 @@ class RuleEvaluator:
                 alert = await self._create_alert(
                     rule, candle, window_start, window_end, trigger_value
                 )
+                if alert is None:
+                    return None
                 logger.info(
                     "alert_triggered",
                     rule_id=str(rule.id),

@@ -5,7 +5,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.schema import UniqueConstraint
 from db.base import Base
 import uuid
-from datetime import datetime
+
+from core.time import utcnow
 
 
 class AlertDeliveryStatus:
@@ -36,7 +37,7 @@ class Alert(Base):
     )
     delivery_attempts = Column(Integer, default=0, nullable=False)
     last_delivery_attempt = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Unique constraint for idempotency
     __table_args__ = (UniqueConstraint("rule_id", "window_start", "window_end", name="uq_alert_window"),)

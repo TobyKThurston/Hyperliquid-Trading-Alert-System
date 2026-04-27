@@ -1,10 +1,11 @@
 """Integration tests for worker flow."""
 import pytest
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from db.models import Rule, Candle as CandleModel, Alert
 from worker.ingest.hyperliquid import Candle
 from worker.evaluate.engine import RuleEvaluator
+from core.time import utcnow
 
 
 @pytest.mark.asyncio
@@ -26,10 +27,10 @@ async def test_rule_evaluator_cooldown(db_session):
         rule_id=rule.id,
         symbol="BTC",
         rule_type="price_threshold",
-        triggered_at=datetime.utcnow() - timedelta(minutes=30),
+        triggered_at=utcnow() - timedelta(minutes=30),
         trigger_value=Decimal("50100"),
-        window_start=datetime.utcnow() - timedelta(minutes=30),
-        window_end=datetime.utcnow() - timedelta(minutes=30),
+        window_start=utcnow() - timedelta(minutes=30),
+        window_end=utcnow() - timedelta(minutes=30),
         delivery_status="delivered",
     )
     db_session.add(recent_alert)
@@ -38,7 +39,7 @@ async def test_rule_evaluator_cooldown(db_session):
     # Create candle that would trigger
     candle = Candle(
         symbol="BTC",
-        timestamp=datetime.utcnow(),
+        timestamp=utcnow(),
         open=Decimal("50000"),
         high=Decimal("51000"),
         low=Decimal("49000"),
@@ -65,14 +66,14 @@ async def test_rule_evaluator_idempotency(db_session):
     await db_session.commit()
     
     # Create existing alert for same window
-    window_start = datetime.utcnow().replace(second=0, microsecond=0)
+    window_start = utcnow().replace(second=0, microsecond=0)
     window_end = window_start + timedelta(minutes=1)
     
     existing_alert = Alert(
         rule_id=rule.id,
         symbol="BTC",
         rule_type="price_threshold",
-        triggered_at=datetime.utcnow(),
+        triggered_at=utcnow(),
         trigger_value=Decimal("50100"),
         window_start=window_start,
         window_end=window_end,

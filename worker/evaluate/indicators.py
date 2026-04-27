@@ -1,4 +1,5 @@
 """Technical indicators."""
+import math
 from typing import List
 from decimal import Decimal
 
@@ -66,6 +67,73 @@ def calculate_macd(
     signal_aligned = signal_line[-min_len:]
     
     histogram = [m - s for m, s in zip(macd_aligned, signal_aligned)]
-    
+
     return macd_line, signal_line, histogram
+
+
+def calculate_rsi(prices: List[float], period: int = 14) -> List[float]:
+    """Wilder's Relative Strength Index.
+
+    Returns a list of RSI values aligned to the tail of `prices`. First
+    RSI value corresponds to index `period` in `prices`. Returns an empty
+    list when there's insufficient data.
+    """
+    if len(prices) <= period:
+        return []
+
+    gains: List[float] = []
+    losses: List[float] = []
+    for i in range(1, len(prices)):
+        change = prices[i] - prices[i - 1]
+        gains.append(max(change, 0.0))
+        losses.append(max(-change, 0.0))
+
+    avg_gain = sum(gains[:period]) / period
+    avg_loss = sum(losses[:period]) / period
+
+    rsi_values: List[float] = []
+    rsi_values.append(_rsi_from_avgs(avg_gain, avg_loss))
+
+    for i in range(period, len(gains)):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        rsi_values.append(_rsi_from_avgs(avg_gain, avg_loss))
+
+    return rsi_values
+
+
+def _rsi_from_avgs(avg_gain: float, avg_loss: float) -> float:
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return 100.0 - (100.0 / (1.0 + rs))
+
+
+def calculate_bollinger_bands(
+    prices: List[float], period: int = 20, std_dev: float = 2.0
+) -> tuple[List[float], List[float], List[float]]:
+    """Bollinger Bands.
+
+    Returns (upper, middle, lower) — each a list aligned to the tail of
+    `prices`. First value corresponds to index `period - 1`. Middle band
+    is the simple moving average; upper/lower are `std_dev` population
+    standard deviations away.
+    """
+    if len(prices) < period or period <= 0:
+        return [], [], []
+
+    upper: List[float] = []
+    middle: List[float] = []
+    lower: List[float] = []
+
+    for i in range(period - 1, len(prices)):
+        window = prices[i - period + 1 : i + 1]
+        mean = sum(window) / period
+        variance = sum((p - mean) ** 2 for p in window) / period
+        sd = math.sqrt(variance)
+        middle.append(mean)
+        upper.append(mean + std_dev * sd)
+        lower.append(mean - std_dev * sd)
+
+    return upper, middle, lower
 

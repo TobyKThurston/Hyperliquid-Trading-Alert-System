@@ -4,7 +4,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.schema import UniqueConstraint
 from db.base import Base
 import uuid
-from datetime import datetime
+
+from core.time import utcnow
 
 
 class Candle(Base):
@@ -21,7 +22,7 @@ class Candle(Base):
     close = Column(Numeric(precision=20, scale=8), nullable=False)
     volume = Column(Numeric(precision=20, scale=8), nullable=True)
     interval_seconds = Column(Integer, default=900, nullable=False)  # 15m = 900s
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Unique constraint: one candle per symbol/timestamp/interval
     __table_args__ = (

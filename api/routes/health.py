@@ -2,8 +2,8 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
-from datetime import datetime
 from api.dependencies import get_db
+from core.time import utcnow
 
 router = APIRouter()
 
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/health")
 async def health_check() -> dict:
     """Basic health check endpoint."""
-    return {"status": "healthy", "timestamp": datetime.utcnow().isoformat() + "Z"}
+    return {"status": "healthy", "timestamp": utcnow().isoformat() + "Z"}
 
 
 @router.get("/metrics")

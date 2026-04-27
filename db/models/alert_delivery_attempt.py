@@ -4,8 +4,8 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from db.base import Base
 import uuid
-from datetime import datetime
-from typing import Optional
+
+from core.time import utcnow
 
 
 class AlertDeliveryAttempt(Base):
@@ -20,7 +20,7 @@ class AlertDeliveryAttempt(Base):
     response_code = Column(Integer, nullable=True)  # HTTP status code
     latency_ms = Column(Integer, nullable=True)  # Latency in milliseconds
     error = Column(Text, nullable=True)  # Error message if failed
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Relationships
     alert = relationship("Alert", back_populates="delivery_attempt_records")

@@ -37,6 +37,8 @@ class PercentMoveRule(BaseRule):
         # Calculate percent change
         old_price = float(old_candle.close)
         new_price = float(candle.close)
+        if old_price == 0:
+            return None
         percent_change = abs(((new_price - old_price) / old_price) * 100)
 
         if percent_change >= percent_threshold:

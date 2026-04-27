@@ -1,12 +1,13 @@
 """Alert endpoints."""
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from uuid import UUID
 from typing import Optional
 from api.dependencies import get_db
 from api.models.alert import AlertResponse, AlertListResponse
-from db.models import Alert
+from api.models.delivery import DeliveryAttemptListResponse, DeliveryAttemptResponse
+from db.models import Alert, AlertDeliveryAttempt
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
@@ -39,6 +40,44 @@ async def list_alerts(
     
     return AlertListResponse(
         alerts=[AlertResponse.model_validate(alert) for alert in alerts],
+        total=total,
+    )
+
+
+@router.get("/{alert_id}/deliveries", response_model=DeliveryAttemptListResponse)
+async def list_delivery_attempts(
+    alert_id: UUID,
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_db),
+) -> DeliveryAttemptListResponse:
+    """Return delivery attempts for an alert, most recent first.
+
+    404 if the alert itself doesn't exist. Returns an empty list if the
+    alert exists but nothing has been dispatched yet.
+    """
+    alert_exists = await db.execute(select(Alert.id).where(Alert.id == alert_id))
+    if alert_exists.scalar_one_or_none() is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    count_result = await db.execute(
+        select(func.count())
+        .select_from(AlertDeliveryAttempt)
+        .where(AlertDeliveryAttempt.alert_id == alert_id)
+    )
+    total = count_result.scalar() or 0
+
+    result = await db.execute(
+        select(AlertDeliveryAttempt)
+        .where(AlertDeliveryAttempt.alert_id == alert_id)
+        .order_by(AlertDeliveryAttempt.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    attempts = result.scalars().all()
+
+    return DeliveryAttemptListResponse(
+        attempts=[DeliveryAttemptResponse.model_validate(a) for a in attempts],
         total=total,
     )
 

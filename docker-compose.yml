@@ -16,6 +16,17 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: pulse_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   api:
     build:
       context: .
@@ -23,6 +34,7 @@ services:
     container_name: pulse_api
     environment:
       DATABASE_URL: postgresql+asyncpg://pulse_user:pulse_password@postgres:5432/pulse_db
+      REDIS_URL: redis://redis:6379/0
       API_KEY: ${API_KEY:-default-api-key-change-me}
       API_HOST: 0.0.0.0
       API_PORT: 8000
@@ -31,6 +43,8 @@ services:
       - "8000:8000"
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     volumes:
       - ./api:/app/api

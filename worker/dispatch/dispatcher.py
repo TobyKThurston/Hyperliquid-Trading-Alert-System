@@ -6,6 +6,7 @@ from db.models import Alert, Rule, AlertDeliveryAttempt
 from worker.dispatch.discord import send_discord_webhook
 from worker.dispatch.webhook import send_generic_webhook
 from core.logging import get_logger
+from core.time import utcnow
 
 logger = get_logger(__name__)
 
@@ -59,14 +60,18 @@ class AlertDispatcher:
             return
 
         attempt_no = alert.delivery_attempts + 1
-        start_time = datetime.utcnow()
+        start_time = utcnow()
+        # Record the attempt time on the alert so retry backoff can key off it
+        # even when every channel fails. (Previously left None on failure, which
+        # caused retry.py to skip its backoff check on the first retry.)
+        alert.last_delivery_attempt = start_time
 
         if rule.discord_webhook_url:
             attempt = await self._create_delivery_attempt(alert, attempt_no, start_time)
 
             try:
                 success = await send_discord_webhook(alert, rule)
-                end_time = datetime.utcnow()
+                end_time = utcnow()
                 latency_ms = int((end_time - start_time).total_seconds() * 1000)
                 response_code = 200 if success else None
 
@@ -76,11 +81,12 @@ class AlertDispatcher:
 
                 if success:
                     alert.delivery_status = "delivered"
+                    alert.delivery_attempts = attempt_no
                     await self.db.commit()
                     logger.info("alert_delivered", alert_id=str(alert.id), channel="discord")
                     return
             except Exception as e:
-                end_time = datetime.utcnow()
+                end_time = utcnow()
                 latency_ms = int((end_time - start_time).total_seconds() * 1000)
                 await self._update_delivery_attempt(
                     attempt, success=False, latency_ms=latency_ms, error=str(e)
@@ -92,7 +98,7 @@ class AlertDispatcher:
 
             try:
                 success = await send_generic_webhook(alert, rule)
-                end_time = datetime.utcnow()
+                end_time = utcnow()
                 latency_ms = int((end_time - start_time).total_seconds() * 1000)
                 response_code = 200 if success else None
 
@@ -102,11 +108,12 @@ class AlertDispatcher:
 
                 if success:
                     alert.delivery_status = "delivered"
+                    alert.delivery_attempts = attempt_no
                     await self.db.commit()
                     logger.info("alert_delivered", alert_id=str(alert.id), channel="generic")
                     return
             except Exception as e:
-                end_time = datetime.utcnow()
+                end_time = utcnow()
                 latency_ms = int((end_time - start_time).total_seconds() * 1000)
                 await self._update_delivery_attempt(
                     attempt, success=False, latency_ms=latency_ms, error=str(e)

@@ -1,7 +1,8 @@
 """Sample data fixtures."""
-from datetime import datetime, timedelta
+from datetime import timedelta
 from decimal import Decimal
 from db.models import Rule, Alert, Candle
+from core.time import utcnow
 
 
 def create_sample_rule():
@@ -18,7 +19,7 @@ def create_sample_rule():
 
 def create_sample_alert(rule_id):
     """Create a sample alert."""
-    now = datetime.utcnow()
+    now = utcnow()
     return Alert(
         rule_id=rule_id,
         symbol="BTC",
@@ -35,7 +36,7 @@ def create_sample_candle():
     """Create a sample candle."""
     return Candle(
         symbol="BTC",
-        timestamp=datetime.utcnow(),
+        timestamp=utcnow(),
         open=Decimal("50000"),
         high=Decimal("51000"),
         low=Decimal("49000"),

@@ -1,25 +1,27 @@
 """Worker main entry point."""
 import asyncio
-import websockets.exceptions
-from datetime import datetime
+
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import make_transient
+
+from core.logging import configure_logging, get_logger
 from db.base import AsyncSessionLocal
-from db.models import Rule, Candle as CandleModel
+from db.models import Candle as CandleModel
+from db.models import Rule
 from worker.config import settings
-from worker.ingest.hyperliquid import HyperliquidClient, Candle
-from worker.ingest.cursor import update_cursor, get_all_cursors
-from worker.evaluate.engine import RuleEvaluator
 from worker.dispatch.dispatcher import AlertDispatcher
 from worker.dispatch.retry import retry_scheduler
-from core.logging import configure_logging, get_logger
+from worker.evaluate.engine import RuleEvaluator
+from worker.ingest.cursor import get_all_cursors, update_cursor
+from worker.ingest.hyperliquid import Candle, HyperliquidClient
 
-# Configure logging
 configure_logging(settings.log_level)
 logger = get_logger(__name__)
 
 
 async def save_candle(db, candle: Candle) -> None:
-    """Save candle to database."""
+    """Persist candle; swallow duplicate-key errors (backfill overlap)."""
     db_candle = CandleModel(
         symbol=candle.symbol,
         timestamp=candle.timestamp,
@@ -33,135 +35,116 @@ async def save_candle(db, candle: Candle) -> None:
     db.add(db_candle)
     try:
         await db.commit()
-    except Exception:
-        # Ignore duplicate key errors (unique constraint)
+    except IntegrityError:
         await db.rollback()
+        logger.debug(
+            "candle_duplicate_skipped",
+            symbol=candle.symbol,
+            timestamp=candle.timestamp.isoformat(),
+        )
 
 
 async def load_active_rules(db) -> list[dict]:
-    """Load active rules as dicts to avoid ORM lazy loading after session closes."""
-    result = await db.execute(select(Rule).where(Rule.is_active == True))
+    """Snapshot active rules as dicts — avoids ORM lazy-load after session close."""
+    result = await db.execute(select(Rule).where(Rule.is_active == True))  # noqa: E712
     rules = result.scalars().all()
-
-    rule_dicts = []
-    for rule in rules:
-        rule_dicts.append({
-            "id": rule.id,
-            "symbol": rule.symbol,
-            "rule_type": rule.rule_type,
-            "config": rule.config,
-            "cooldown_seconds": rule.cooldown_seconds,
-            "is_active": rule.is_active,
-            "discord_webhook_url": rule.discord_webhook_url,
-            "generic_webhook_url": rule.generic_webhook_url,
-        })
-
-    return rule_dicts
-
-
-async def backfill_missing_candles(
-    db, hyperliquid: HyperliquidClient, cursors: dict[str, datetime]
-) -> None:
-    """Backfill missing candles after disconnect."""
-    logger.info("backfilling_candles", cursors=list(cursors.keys()))
-    
-    for coin, last_timestamp in cursors.items():
-        try:
-            candles = await hyperliquid.backfill(coin, last_timestamp)
-            logger.info("backfilled_candles", coin=coin, count=len(candles))
-            
-            for candle in candles:
-                await save_candle(db, candle)
-                await update_cursor(db, coin, candle.timestamp)
-        except Exception as e:
-            logger.error("backfill_failed", coin=coin, error=str(e), exc_info=True)
+    return [
+        {
+            "id": r.id,
+            "symbol": r.symbol,
+            "rule_type": r.rule_type,
+            "config": r.config,
+            "cooldown_seconds": r.cooldown_seconds,
+            "is_active": r.is_active,
+            "discord_webhook_url": r.discord_webhook_url,
+            "generic_webhook_url": r.generic_webhook_url,
+        }
+        for r in rules
+    ]
 
 
 async def main_loop() -> None:
-    """Main worker loop."""
-    logger.info("worker_starting", worker_id=settings.worker_id, symbols=settings.symbol_list)
-    
+    """Run the ingest → evaluate → dispatch pipeline.
+
+    The WS client handles reconnect + gap-backfill internally, so this loop
+    stays simple: pull candles forever, evaluate, dispatch. A background
+    retry scheduler re-drives failed deliveries.
+    """
+    logger.info(
+        "worker_starting",
+        worker_id=settings.worker_id,
+        symbols=settings.symbol_list,
+        mode=settings.ingest_mode,
+    )
+
     hyperliquid = HyperliquidClient()
-    
+    retry_task: asyncio.Task | None = None
+
     try:
         async with AsyncSessionLocal() as db:
-            # Load active rules
             rules = await load_active_rules(db)
             logger.info("loaded_rules", count=len(rules))
-            
-            # Load cursors
+
             cursors = await get_all_cursors(db)
             logger.info("loaded_cursors", cursors=list(cursors.keys()))
-            
-            # Initialize components
+            hyperliquid.seed_last_seen(cursors)
+
             evaluator = RuleEvaluator(db)
             dispatcher = AlertDispatcher(db)
-            
-            # Connect WebSocket
-            await hyperliquid.connect()
-            
-            # Start retry scheduler in background
-            retry_task = asyncio.create_task(retry_scheduler())
-            
-            try:
-                # Stream candles
-                async for candle in hyperliquid.stream():
-                    # Save candle
-                    await save_candle(db, candle)
-                    
-                    # Update cursor
-                    await update_cursor(db, candle.symbol, candle.timestamp)
-                    
-                    # Evaluate rules for this symbol
-                    symbol_rules = [
-                        r for r in rules if r["symbol"] == candle.symbol and r["is_active"]
-                    ]
-                    
-                    for rule_dict in symbol_rules:
-                        try:
-                            from sqlalchemy.orm import make_transient
-                            rule = Rule(
-                                id=rule_dict["id"],
-                                symbol=rule_dict["symbol"],
-                                rule_type=rule_dict["rule_type"],
-                                config=rule_dict["config"],
-                                cooldown_seconds=rule_dict["cooldown_seconds"],
-                                is_active=rule_dict["is_active"],
-                                discord_webhook_url=rule_dict.get("discord_webhook_url"),
-                                generic_webhook_url=rule_dict.get("generic_webhook_url"),
-                            )
-                            make_transient(rule)
 
-                            alert = await evaluator.evaluate(rule, candle)
-                            if alert:
-                                await dispatcher.dispatch(alert)
-                        except Exception as e:
-                            logger.error(
-                                "rule_evaluation_failed",
-                                rule_id=str(rule_dict["id"]),
-                                symbol=candle.symbol,
-                                error=str(e),
-                                exc_info=True,
-                            )
-                            
-            except websockets.exceptions.ConnectionClosed:
-                logger.warn("websocket_disconnected", action="backfilling")
-                await backfill_missing_candles(db, hyperliquid, cursors)
-                # Reconnect and continue
-                await hyperliquid.connect()
-            except KeyboardInterrupt:
-                logger.info("worker_shutting_down")
-                retry_task.cancel()
-                try:
-                    await retry_task
-                except asyncio.CancelledError:
-                    pass
-            finally:
-                await hyperliquid.close()
-                
+            await hyperliquid.connect()
+            retry_task = asyncio.create_task(retry_scheduler())
+
+            async for candle in hyperliquid.stream():
+                await save_candle(db, candle)
+                await update_cursor(db, candle.symbol, candle.timestamp)
+
+                symbol_rules = [
+                    r for r in rules if r["symbol"] == candle.symbol and r["is_active"]
+                ]
+                for rule_dict in symbol_rules:
+                    try:
+                        rule = Rule(
+                            id=rule_dict["id"],
+                            symbol=rule_dict["symbol"],
+                            rule_type=rule_dict["rule_type"],
+                            config=rule_dict["config"],
+                            cooldown_seconds=rule_dict["cooldown_seconds"],
+                            is_active=rule_dict["is_active"],
+                            discord_webhook_url=rule_dict.get("discord_webhook_url"),
+                            generic_webhook_url=rule_dict.get("generic_webhook_url"),
+                        )
+                        make_transient(rule)
+
+                        alert = await evaluator.evaluate(rule, candle)
+                        if alert:
+                            await dispatcher.dispatch(alert)
+                    except Exception as e:
+                        logger.error(
+                            "rule_evaluation_failed",
+                            rule_id=str(rule_dict["id"]),
+                            symbol=candle.symbol,
+                            error=str(e),
+                            exc_info=True,
+                        )
+                        # Failed eval/dispatch can leave the session in a
+                        # failed-transaction state; roll back so the next
+                        # candle doesn't silently fail at commit time.
+                        await db.rollback()
+    except asyncio.CancelledError:
+        logger.info("worker_cancelled")
+        raise
     except Exception as e:
         logger.error("worker_fatal_error", error=str(e), exc_info=True)
         raise
+    finally:
+        if retry_task:
+            retry_task.cancel()
+            try:
+                await retry_task
+            except asyncio.CancelledError:
+                pass
+        await hyperliquid.close()
 
 
 if __name__ == "__main__":
@@ -169,4 +152,3 @@ if __name__ == "__main__":
         asyncio.run(main_loop())
     except KeyboardInterrupt:
         logger.info("worker_stopped")
-

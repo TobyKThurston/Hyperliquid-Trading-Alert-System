@@ -66,8 +66,11 @@ async def test_fetch_candles_request_body():
     """Test that fetch_candles sends correct POST request body."""
     client = HyperliquidClient()
     
+    from datetime import timezone
     start_time = datetime(2024, 1, 1, 0, 0, 0)
     end_time = datetime(2024, 1, 1, 1, 0, 0)
+    start_ms = int(start_time.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    end_ms = int(end_time.replace(tzinfo=timezone.utc).timestamp() * 1000)
     
     with patch("worker.ingest.hyperliquid.httpx.AsyncClient") as mock_client_class:
         mock_response = MagicMock()
@@ -93,8 +96,8 @@ async def test_fetch_candles_request_body():
         assert payload["type"] == "candleSnapshot"
         assert payload["req"]["coin"] == "ETH"
         assert payload["req"]["interval"] == "15m"
-        assert payload["req"]["startTime"] == int(start_time.timestamp() * 1000)
-        assert payload["req"]["endTime"] == int(end_time.timestamp() * 1000)
+        assert payload["req"]["startTime"] == start_ms
+        assert payload["req"]["endTime"] == end_ms
 
 
 @pytest.mark.asyncio

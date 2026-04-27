@@ -5,6 +5,7 @@ from datetime import datetime
 from db.models import WorkerCursor
 from worker.config import settings
 from core.logging import get_logger
+from core.time import utcnow
 
 logger = get_logger(__name__)
 
@@ -26,7 +27,7 @@ async def update_cursor(db: AsyncSession, symbol: str, timestamp: datetime) -> N
     
     if cursor:
         cursor.last_processed_timestamp = timestamp
-        cursor.updated_at = datetime.utcnow()
+        cursor.updated_at = utcnow()
     else:
         cursor = WorkerCursor(
             worker_id=settings.worker_id,
