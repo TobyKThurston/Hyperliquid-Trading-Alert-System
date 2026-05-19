@@ -1,9 +1,10 @@
 """Alert API models."""
-from pydantic import BaseModel, ConfigDict
+
 from datetime import datetime
-from uuid import UUID
-from typing import Optional
 from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
 
 
 class AlertResponse(BaseModel):
@@ -14,7 +15,7 @@ class AlertResponse(BaseModel):
     symbol: str
     rule_type: str
     triggered_at: datetime
-    trigger_value: Optional[Decimal]
+    trigger_value: Decimal | None
     delivery_status: str
     delivery_attempts: int
     created_at: datetime
@@ -27,4 +28,3 @@ class AlertListResponse(BaseModel):
 
     alerts: list[AlertResponse]
     total: int
-

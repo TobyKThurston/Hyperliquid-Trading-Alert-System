@@ -5,17 +5,18 @@ Revises: 001_initial
 Create Date: 2024-01-02 00:00:00.000000
 
 """
-from typing import Sequence, Union
 
-from alembic import op
+from collections.abc import Sequence
+
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = "002_add_alert_delivery_attempts"
-down_revision: Union[str, None] = "001_initial"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "001_initial"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
@@ -32,7 +33,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["alert_id"], ["alerts.id"], ondelete="CASCADE"),
     )
-    
+
     # Create index
     op.create_index(
         "idx_alert_delivery_attempts_alert_created",
@@ -44,7 +45,6 @@ def upgrade() -> None:
 def downgrade() -> None:
     # Drop index
     op.drop_index("idx_alert_delivery_attempts_alert_created", table_name="alert_delivery_attempts")
-    
+
     # Drop table
     op.drop_table("alert_delivery_attempts")
-

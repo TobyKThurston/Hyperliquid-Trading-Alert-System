@@ -1,4 +1,5 @@
 """Worker main entry point."""
+
 import asyncio
 
 from sqlalchemy import select
@@ -99,9 +100,7 @@ async def main_loop() -> None:
                 await save_candle(db, candle)
                 await update_cursor(db, candle.symbol, candle.timestamp)
 
-                symbol_rules = [
-                    r for r in rules if r["symbol"] == candle.symbol and r["is_active"]
-                ]
+                symbol_rules = [r for r in rules if r["symbol"] == candle.symbol and r["is_active"]]
                 for rule_dict in symbol_rules:
                     try:
                         rule = Rule(

@@ -1,5 +1,4 @@
 """RSI threshold rule."""
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,9 +22,7 @@ class RSIRule(BaseRule):
     bar that stays past it — avoids spammy alerts in extended trends.
     """
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         period = int(config.get("period", 14))
         direction = config["direction"]
         if direction not in ("overbought", "oversold"):

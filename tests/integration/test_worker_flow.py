@@ -1,11 +1,14 @@
 """Integration tests for worker flow."""
-import pytest
+
 from datetime import timedelta
 from decimal import Decimal
-from db.models import Rule, Candle as CandleModel, Alert
-from worker.ingest.hyperliquid import Candle
-from worker.evaluate.engine import RuleEvaluator
+
+import pytest
+
 from core.time import utcnow
+from db.models import Alert, Rule
+from worker.evaluate.engine import RuleEvaluator
+from worker.ingest.hyperliquid import Candle
 
 
 @pytest.mark.asyncio
@@ -21,7 +24,7 @@ async def test_rule_evaluator_cooldown(db_session):
     )
     db_session.add(rule)
     await db_session.commit()
-    
+
     # Create recent alert (within cooldown)
     recent_alert = Alert(
         rule_id=rule.id,
@@ -35,7 +38,7 @@ async def test_rule_evaluator_cooldown(db_session):
     )
     db_session.add(recent_alert)
     await db_session.commit()
-    
+
     # Create candle that would trigger
     candle = Candle(
         symbol="BTC",
@@ -45,10 +48,10 @@ async def test_rule_evaluator_cooldown(db_session):
         low=Decimal("49000"),
         close=Decimal("50500"),
     )
-    
+
     evaluator = RuleEvaluator(db_session)
     result = await evaluator.evaluate(rule, candle)
-    
+
     # Should be None due to cooldown
     assert result is None
 
@@ -64,11 +67,11 @@ async def test_rule_evaluator_idempotency(db_session):
     )
     db_session.add(rule)
     await db_session.commit()
-    
+
     # Create existing alert for same window
     window_start = utcnow().replace(second=0, microsecond=0)
     window_end = window_start + timedelta(minutes=1)
-    
+
     existing_alert = Alert(
         rule_id=rule.id,
         symbol="BTC",
@@ -81,7 +84,7 @@ async def test_rule_evaluator_idempotency(db_session):
     )
     db_session.add(existing_alert)
     await db_session.commit()
-    
+
     # Create candle in same window
     candle = Candle(
         symbol="BTC",
@@ -91,10 +94,9 @@ async def test_rule_evaluator_idempotency(db_session):
         low=Decimal("49000"),
         close=Decimal("50500"),
     )
-    
+
     evaluator = RuleEvaluator(db_session)
     result = await evaluator.evaluate(rule, candle)
-    
+
     # Should be None due to idempotency
     assert result is None
-

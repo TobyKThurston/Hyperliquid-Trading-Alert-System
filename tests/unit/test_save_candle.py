@@ -1,4 +1,5 @@
 """Regression tests for worker.main.save_candle exception handling."""
+
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import AsyncMock, MagicMock
@@ -41,9 +42,7 @@ async def test_save_candle_propagates_non_integrity_error():
     """Connection drops, disk full, etc. must NOT be silently swallowed."""
     db = MagicMock()
     db.add = MagicMock()
-    db.commit = AsyncMock(
-        side_effect=OperationalError("connection lost", None, Exception("boom"))
-    )
+    db.commit = AsyncMock(side_effect=OperationalError("connection lost", None, Exception("boom")))
     db.rollback = AsyncMock()
 
     with pytest.raises(OperationalError):

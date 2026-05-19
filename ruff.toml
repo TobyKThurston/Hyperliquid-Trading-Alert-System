@@ -3,5 +3,12 @@ target-version = "py312"
 
 [lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]
+ignore = [
+    "E501",  # Line length handled by formatter
+    "E712",  # `== True` is the SQLAlchemy idiom for column comparisons
+    "N806",  # Allow uppercase locals (intentional constants inside functions)
+    "N818",  # Existing exception class names without Error suffix
+]
 
+[lint.per-file-ignores]
+"tests/**/*.py" = ["F841"]  # Unused locals in tests are often intentional

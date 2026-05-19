@@ -1,14 +1,16 @@
 """FastAPI application entry point."""
+
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from core.logging import configure_logging, get_logger
+
 from api.config import settings
-from api.ratelimit import close_client
-from api.routes import health, rules, alerts, candles
 from api.middleware.auth import APIKeyMiddleware
+from api.ratelimit import close_client
+from api.routes import alerts, candles, health, rules
+from core.logging import configure_logging, get_logger
 
 # Configure logging
 configure_logging(settings.log_level)
@@ -62,4 +64,3 @@ if __name__ == "__main__":
         reload=False,
         log_config=None,
     )
-

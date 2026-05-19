@@ -1,16 +1,15 @@
 """Price threshold rule."""
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from worker.evaluate.rules.base import BaseRule
 from worker.ingest.hyperliquid import Candle
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 
 class PriceThresholdRule(BaseRule):
     """Rule that triggers when price crosses a threshold."""
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         """Check if price crosses threshold."""
         threshold = float(config["threshold"])
         operator = config["operator"]
@@ -24,4 +23,3 @@ class PriceThresholdRule(BaseRule):
                 return current_price
 
         return None
-

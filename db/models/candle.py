@@ -1,11 +1,13 @@
 """Candle database model for caching market data."""
-from sqlalchemy import Column, String, DateTime, Integer, Numeric
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.schema import UniqueConstraint
-from db.base import Base
+
 import uuid
 
+from sqlalchemy import Column, DateTime, Integer, Numeric, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.schema import UniqueConstraint
+
 from core.time import utcnow
+from db.base import Base
 
 
 class Candle(Base):
@@ -26,6 +28,7 @@ class Candle(Base):
 
     # Unique constraint: one candle per symbol/timestamp/interval
     __table_args__ = (
-        UniqueConstraint("symbol", "timestamp", "interval_seconds", name="uq_candle_symbol_time_interval"),
+        UniqueConstraint(
+            "symbol", "timestamp", "interval_seconds", name="uq_candle_symbol_time_interval"
+        ),
     )
-

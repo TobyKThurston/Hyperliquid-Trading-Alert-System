@@ -10,24 +10,25 @@ these helpers replaces two bug-prone stdlib calls:
 
 All producers should route through `utcnow()` and `from_ms()`.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 
 def utcnow() -> datetime:
     """Current time as naive UTC."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def from_ms(ms: int) -> datetime:
     """Convert Unix epoch milliseconds to naive UTC."""
-    return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).replace(tzinfo=None)
+    return datetime.fromtimestamp(ms / 1000, tz=UTC).replace(tzinfo=None)
 
 
 def now_ms() -> int:
     """Current Unix epoch time in milliseconds (timezone-safe)."""
-    return int(datetime.now(timezone.utc).timestamp() * 1000)
+    return int(datetime.now(UTC).timestamp() * 1000)
 
 
 def to_ms(dt: datetime) -> int:
     """Convert a naive-UTC-by-convention datetime to Unix epoch milliseconds."""
-    return int(dt.replace(tzinfo=timezone.utc).timestamp() * 1000)
+    return int(dt.replace(tzinfo=UTC).timestamp() * 1000)

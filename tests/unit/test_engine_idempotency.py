@@ -1,6 +1,7 @@
 """Regression tests for the alert idempotency race."""
+
 import uuid
-from datetime import datetime, timedelta
+from datetime import datetime
 from decimal import Decimal
 
 import pytest

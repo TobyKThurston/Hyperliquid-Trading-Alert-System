@@ -1,9 +1,10 @@
 """Candle API models."""
-from pydantic import BaseModel, ConfigDict
+
 from datetime import datetime
-from uuid import UUID
-from typing import Optional
 from decimal import Decimal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
 
 
 class CandleResponse(BaseModel):
@@ -16,7 +17,7 @@ class CandleResponse(BaseModel):
     high: Decimal
     low: Decimal
     close: Decimal
-    volume: Optional[Decimal]
+    volume: Decimal | None
     interval_seconds: int
     created_at: datetime
 
@@ -31,4 +32,3 @@ class CandleListResponse(BaseModel):
     limit: int
     offset: int
     order: str
-

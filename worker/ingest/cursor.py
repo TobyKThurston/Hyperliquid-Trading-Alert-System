@@ -1,11 +1,14 @@
 """Cursor persistence for worker state."""
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from datetime import datetime
-from db.models import WorkerCursor
-from worker.config import settings
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.logging import get_logger
 from core.time import utcnow
+from db.models import WorkerCursor
+from worker.config import settings
 
 logger = get_logger(__name__)
 
@@ -24,7 +27,7 @@ async def get_cursor(db: AsyncSession, symbol: str) -> WorkerCursor | None:
 async def update_cursor(db: AsyncSession, symbol: str, timestamp: datetime) -> None:
     """Update or create cursor for a symbol."""
     cursor = await get_cursor(db, symbol)
-    
+
     if cursor:
         cursor.last_processed_timestamp = timestamp
         cursor.updated_at = utcnow()
@@ -35,7 +38,7 @@ async def update_cursor(db: AsyncSession, symbol: str, timestamp: datetime) -> N
             last_processed_timestamp=timestamp,
         )
         db.add(cursor)
-    
+
     await db.commit()
 
 
@@ -46,4 +49,3 @@ async def get_all_cursors(db: AsyncSession) -> dict[str, datetime]:
     )
     cursors = result.scalars().all()
     return {cursor.symbol: cursor.last_processed_timestamp for cursor in cursors}
-

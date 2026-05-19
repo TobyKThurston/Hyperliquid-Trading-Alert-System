@@ -49,13 +49,24 @@ dev = [
 requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+packages = ["api", "core", "db", "worker"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
-ignore = ["E501"]  # Line length handled by formatter
+ignore = [
+    "E501",  # Line length handled by formatter
+    "E712",  # `== True` is the SQLAlchemy idiom for column comparisons
+    "N806",  # Allow uppercase locals (intentional constants inside functions)
+    "N818",  # Existing exception class names without Error suffix
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["F841"]  # Unused locals in tests are often intentional
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

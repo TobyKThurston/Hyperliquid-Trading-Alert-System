@@ -1,19 +1,18 @@
 """MACD crossover rule."""
-from worker.evaluate.rules.base import BaseRule
-from worker.ingest.hyperliquid import Candle
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
-from typing import Optional
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from db.models import Candle as CandleModel
 from worker.evaluate.indicators import calculate_macd
+from worker.evaluate.rules.base import BaseRule
+from worker.ingest.hyperliquid import Candle
 
 
 class MACDCrossRule(BaseRule):
     """Rule that triggers on MACD signal line crossover."""
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         """Check for MACD crossover."""
         fast_period = int(config.get("fast_period", 12))
         slow_period = int(config.get("slow_period", 26))
@@ -39,9 +38,7 @@ class MACDCrossRule(BaseRule):
         prices = [float(c.close) for c in reversed(candles)]
 
         # Calculate MACD
-        macd_line, signal_line, _ = calculate_macd(
-            prices, fast_period, slow_period, signal_period
-        )
+        macd_line, signal_line, _ = calculate_macd(prices, fast_period, slow_period, signal_period)
 
         if len(macd_line) < 2 or len(signal_line) < 2:
             return None
@@ -62,4 +59,3 @@ class MACDCrossRule(BaseRule):
                 return float(candle.close)
 
         return None
-

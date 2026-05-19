@@ -1,12 +1,15 @@
 """Alert dispatcher."""
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+
 from datetime import datetime
-from db.models import Alert, Rule, AlertDeliveryAttempt
-from worker.dispatch.discord import send_discord_webhook
-from worker.dispatch.webhook import send_generic_webhook
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from core.logging import get_logger
 from core.time import utcnow
+from db.models import Alert, AlertDeliveryAttempt, Rule
+from worker.dispatch.discord import send_discord_webhook
+from worker.dispatch.webhook import send_generic_webhook
 
 logger = get_logger(__name__)
 
@@ -118,10 +121,11 @@ class AlertDispatcher:
                 await self._update_delivery_attempt(
                     attempt, success=False, latency_ms=latency_ms, error=str(e)
                 )
-                logger.error("generic_webhook_dispatch_exception", alert_id=str(alert.id), error=str(e))
+                logger.error(
+                    "generic_webhook_dispatch_exception", alert_id=str(alert.id), error=str(e)
+                )
 
         alert.delivery_status = "pending"
         alert.delivery_attempts = attempt_no
         await self.db.commit()
         logger.debug("alert_pending_retry", alert_id=str(alert.id), attempts=attempt_no)
-

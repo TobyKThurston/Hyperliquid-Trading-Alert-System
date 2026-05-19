@@ -1,16 +1,18 @@
 """Retry scheduler for failed alert deliveries."""
+
 import asyncio
 import random
-from datetime import datetime, timedelta
-from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import timedelta
+
 from sqlalchemy import select
-from db.models import Alert, Rule, AlertDeliveryAttempt
-from db.base import AsyncSessionLocal
-from worker.dispatch.discord import send_discord_webhook
-from worker.dispatch.webhook import send_generic_webhook
-from worker.config import settings
+
 from core.logging import get_logger
 from core.time import utcnow
+from db.base import AsyncSessionLocal
+from db.models import Alert, AlertDeliveryAttempt, Rule
+from worker.config import settings
+from worker.dispatch.discord import send_discord_webhook
+from worker.dispatch.webhook import send_generic_webhook
 
 logger = get_logger(__name__)
 
@@ -39,15 +41,11 @@ async def process_pending_alerts() -> None:
             now = utcnow()
             if alert.last_delivery_attempt:
                 backoff_seconds = calculate_backoff(alert.delivery_attempts)
-                next_attempt_time = alert.last_delivery_attempt + timedelta(
-                    seconds=backoff_seconds
-                )
+                next_attempt_time = alert.last_delivery_attempt + timedelta(seconds=backoff_seconds)
                 if now < next_attempt_time:
                     continue
 
-            rule_result = await db.execute(
-                select(Rule).where(Rule.id == alert.rule_id)
-            )
+            rule_result = await db.execute(select(Rule).where(Rule.id == alert.rule_id))
             rule = rule_result.scalar_one_or_none()
 
             if not rule:
@@ -117,4 +115,3 @@ async def retry_scheduler() -> None:
             logger.error("retry_scheduler_error", error=str(e), exc_info=True)
 
         await asyncio.sleep(settings.retry_poll_interval)
-

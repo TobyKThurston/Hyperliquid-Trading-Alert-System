@@ -23,4 +23,3 @@ class AlertDeliveryError(PulseException):
     """Raised when alert delivery fails."""
 
     pass
-

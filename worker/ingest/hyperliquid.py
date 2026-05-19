@@ -12,11 +12,12 @@ Two ingestion modes, selected by `settings.ingest_mode`:
 REST helpers (`fetch_latest_candle`, `fetch_candles`, `backfill`) are
 available regardless of mode — the WS path uses them for gap recovery.
 """
+
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import datetime
 from decimal import Decimal
-from typing import AsyncIterator, Optional
 
 import httpx
 import websockets
@@ -40,7 +41,7 @@ class Candle:
         high: Decimal,
         low: Decimal,
         close: Decimal,
-        volume: Optional[Decimal] = None,
+        volume: Decimal | None = None,
         interval_seconds: int = 900,
     ):
         self.symbol = symbol.upper()
@@ -53,11 +54,11 @@ class Candle:
         self.interval_seconds = interval_seconds
 
 
-def _get_timestamp_ms(data: dict) -> Optional[int]:
+def _get_timestamp_ms(data: dict) -> int | None:
     return data.get("t") or data.get("time") or data.get("timestamp")
 
 
-def _candle_from_dict(symbol: str, data: dict, interval_seconds: int = 900) -> Optional[Candle]:
+def _candle_from_dict(symbol: str, data: dict, interval_seconds: int = 900) -> Candle | None:
     """Parse a candle dict (REST or WS shape). Returns None on malformed input."""
     ts_ms = _get_timestamp_ms(data)
     if ts_ms is None:
@@ -118,7 +119,7 @@ class HyperliquidClient:
 
     # ------------------------------------------------------------------ REST
 
-    async def fetch_latest_candle(self, coin: str) -> Optional[Candle]:
+    async def fetch_latest_candle(self, coin: str) -> Candle | None:
         """Fetch latest candle for a coin (used by poll mode).
 
         Requests last 200 candles and returns the most recent one.
@@ -140,7 +141,9 @@ class HyperliquidClient:
                 },
             }
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                response = await client.post(
+                    url, json=payload, headers={"Content-Type": "application/json"}
+                )
                 if response.status_code != 200:
                     logger.error(
                         "fetch_latest_candle_failed",
@@ -180,7 +183,7 @@ class HyperliquidClient:
         self,
         coin: str,
         start_time: datetime,
-        end_time: Optional[datetime] = None,
+        end_time: datetime | None = None,
         interval: str = "15m",
     ) -> list[Candle]:
         """Fetch historical candles for a time range."""
@@ -200,7 +203,9 @@ class HyperliquidClient:
                 },
             }
             async with httpx.AsyncClient(timeout=30.0) as client:
-                response = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                response = await client.post(
+                    url, json=payload, headers={"Content-Type": "application/json"}
+                )
                 if response.status_code != 200:
                     logger.error(
                         "fetch_candles_failed",
@@ -327,7 +332,7 @@ class HyperliquidClient:
                                 ws.recv(),
                                 timeout=settings.ws_heartbeat_timeout,
                             )
-                        except asyncio.TimeoutError:
+                        except TimeoutError:
                             logger.warn(
                                 "ws_heartbeat_timeout",
                                 timeout_seconds=settings.ws_heartbeat_timeout,
@@ -358,10 +363,7 @@ class HyperliquidClient:
                             continue
 
                         coin = (
-                            data.get("s")
-                            or data.get("coin")
-                            or data.get("symbol")
-                            or ""
+                            data.get("s") or data.get("coin") or data.get("symbol") or ""
                         ).upper()
                         if not coin:
                             continue

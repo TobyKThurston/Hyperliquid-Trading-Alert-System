@@ -1,13 +1,15 @@
 """Structured logging setup using structlog."""
-import structlog
+
 import sys
 from typing import Any
+
+import structlog
 
 
 def configure_logging(log_level: str = "INFO") -> None:
     """Configure structlog with JSON output."""
     import logging
-    
+
     # Map string log level to logging constant
     level_map = {
         "DEBUG": logging.DEBUG,
@@ -17,7 +19,7 @@ def configure_logging(log_level: str = "INFO") -> None:
         "CRITICAL": logging.CRITICAL,
     }
     log_level_num = level_map.get(log_level.upper(), logging.INFO)
-    
+
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
@@ -37,4 +39,3 @@ def configure_logging(log_level: str = "INFO") -> None:
 def get_logger(*args: Any, **kwargs: Any) -> structlog.BoundLogger:
     """Get a configured logger instance."""
     return structlog.get_logger(*args, **kwargs)
-

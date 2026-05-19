@@ -1,6 +1,6 @@
 """Alert delivery attempt API models."""
+
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -13,9 +13,9 @@ class DeliveryAttemptResponse(BaseModel):
     alert_id: UUID
     attempt_no: int
     status: str
-    response_code: Optional[int]
-    latency_ms: Optional[int]
-    error: Optional[str]
+    response_code: int | None
+    latency_ms: int | None
+    error: str | None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

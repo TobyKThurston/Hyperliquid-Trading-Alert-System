@@ -1,11 +1,9 @@
 """Pytest configuration and fixtures."""
+
 import pytest
-import asyncio
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
-import os
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import StaticPool
 
 # Test database URL (in-memory SQLite for tests)
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -27,20 +25,20 @@ TestSessionLocal = async_sessionmaker(
 @pytest.fixture(scope="function")
 async def db_session():
     """Create a test database session."""
-    from db.base import Base
     # Ensure every model is registered on Base.metadata before create_all.
     # Without this import, tables only the FastAPI app ends up using (via the
     # integration tests) aren't declared yet when we build the schema.
     import db.models  # noqa: F401
+    from db.base import Base
 
     # Create tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
-    
+
     # Create session
     async with TestSessionLocal() as session:
         yield session
-    
+
     # Drop tables
     async with test_engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
@@ -49,20 +47,18 @@ async def db_session():
 @pytest.fixture(scope="function")
 async def test_client(db_session):
     """Create a test client."""
-    from api.main import app
     from api.dependencies import get_db
-    
+    from api.main import app
+
     # Override get_db dependency
     async def override_get_db():
         yield db_session
-    
+
     app.dependency_overrides[get_db] = override_get_db
-    
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as client:
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
-    
+
     # Cleanup
     app.dependency_overrides.clear()
 
@@ -88,7 +84,7 @@ def set_test_env(api_key, monkeypatch):
 
     try:
         from api.config import settings as api_settings
+
         monkeypatch.setattr(api_settings, "api_key", api_key)
     except ImportError:
         pass
-

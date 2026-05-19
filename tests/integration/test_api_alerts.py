@@ -1,8 +1,11 @@
 """Integration tests for alerts API."""
-import pytest
+
 from decimal import Decimal
-from db.models import Rule, Alert
+
+import pytest
+
 from core.time import utcnow
+from db.models import Alert, Rule
 
 
 @pytest.mark.asyncio
@@ -17,7 +20,7 @@ async def test_list_alerts(test_client, db_session):
     )
     db_session.add(rule)
     await db_session.commit()
-    
+
     alert = Alert(
         rule_id=rule.id,
         symbol="BTC",
@@ -30,9 +33,9 @@ async def test_list_alerts(test_client, db_session):
     )
     db_session.add(alert)
     await db_session.commit()
-    
+
     response = await test_client.get("/api/v1/alerts")
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["total"] >= 1
@@ -58,7 +61,7 @@ async def test_list_alerts_filter_by_rule(test_client, db_session):
     db_session.add(rule1)
     db_session.add(rule2)
     await db_session.commit()
-    
+
     alert1 = Alert(
         rule_id=rule1.id,
         symbol="BTC",
@@ -82,11 +85,10 @@ async def test_list_alerts_filter_by_rule(test_client, db_session):
     db_session.add(alert1)
     db_session.add(alert2)
     await db_session.commit()
-    
+
     response = await test_client.get(f"/api/v1/alerts?rule_id={rule1.id}")
-    
+
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
     assert data["alerts"][0]["rule_id"] == str(rule1.id)
-

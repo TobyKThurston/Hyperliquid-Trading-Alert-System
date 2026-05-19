@@ -1,7 +1,9 @@
 """Generic webhook dispatcher."""
+
 import httpx
-from db.models import Alert, Rule
+
 from core.logging import get_logger
+from db.models import Alert, Rule
 
 logger = get_logger(__name__)
 
@@ -34,4 +36,3 @@ async def send_generic_webhook(alert: Alert, rule: Rule) -> bool:
             error=str(e),
         )
         return False
-

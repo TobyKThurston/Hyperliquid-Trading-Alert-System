@@ -1,13 +1,15 @@
 """Rule database model."""
-from sqlalchemy import Column, String, Boolean, Integer, DateTime, Enum as SQLEnum, JSON
-from sqlalchemy.dialects.postgresql import UUID, JSONB
-from sqlalchemy.orm import relationship
-from db.base import Base
+
 import uuid
 from typing import Literal
 
-from core.time import utcnow
+from sqlalchemy import JSON, Boolean, Column, DateTime, Integer, String
+from sqlalchemy import Enum as SQLEnum
+from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.orm import relationship
 
+from core.time import utcnow
+from db.base import Base
 
 RuleType = Literal[
     "price_threshold",
@@ -50,4 +52,3 @@ class Rule(Base):
 
     # Relationships
     alerts = relationship("Alert", back_populates="rule", cascade="all, delete-orphan")
-

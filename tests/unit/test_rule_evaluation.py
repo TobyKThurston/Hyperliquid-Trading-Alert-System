@@ -1,13 +1,15 @@
 """Unit tests for rule evaluation."""
-import pytest
+
 from datetime import datetime, timedelta
 from decimal import Decimal
-from worker.ingest.hyperliquid import Candle
-from worker.evaluate.rules.price_threshold import PriceThresholdRule
-from worker.evaluate.rules.percent_move import PercentMoveRule
-from worker.evaluate.rules.candle_close import CandleCloseRule
-from worker.evaluate.rules.macd_cross import MACDCrossRule
+
+import pytest
+
 from core.time import utcnow
+from worker.evaluate.rules.candle_close import CandleCloseRule
+from worker.evaluate.rules.percent_move import PercentMoveRule
+from worker.evaluate.rules.price_threshold import PriceThresholdRule
+from worker.ingest.hyperliquid import Candle
 
 
 @pytest.mark.asyncio
@@ -22,10 +24,10 @@ async def test_price_threshold_above(db_session):
         low=Decimal("49000"),
         close=Decimal("50500"),
     )
-    
+
     config = {"threshold": 50000, "operator": ">="}
     result = await rule.evaluate(config, candle, db_session)
-    
+
     assert result == 50500.0
 
 
@@ -41,10 +43,10 @@ async def test_price_threshold_below(db_session):
         low=Decimal("49000"),
         close=Decimal("49000"),
     )
-    
+
     config = {"threshold": 50000, "operator": "<="}
     result = await rule.evaluate(config, candle, db_session)
-    
+
     assert result == 49000.0
 
 
@@ -60,10 +62,10 @@ async def test_price_threshold_no_match(db_session):
         low=Decimal("49000"),
         close=Decimal("49000"),
     )
-    
+
     config = {"threshold": 50000, "operator": ">="}
     result = await rule.evaluate(config, candle, db_session)
-    
+
     assert result is None
 
 
@@ -79,10 +81,10 @@ async def test_candle_close_above(db_session):
         low=Decimal("49000"),
         close=Decimal("50500"),
     )
-    
+
     config = {"value": 50000, "operator": ">="}
     result = await rule.evaluate(config, candle, db_session)
-    
+
     assert result == 50500.0
 
 
@@ -90,7 +92,7 @@ async def test_candle_close_above(db_session):
 async def test_percent_move_rule(db_session):
     """Test percent move rule."""
     from db.models import Candle as CandleModel
-    
+
     rule = PercentMoveRule()
 
     # Deterministic timestamps so the 10m window comfortably contains both candles.
@@ -158,4 +160,3 @@ async def test_percent_move_rule_zero_old_price(db_session):
     # Must return None cleanly, not raise.
     result = await rule.evaluate(config, new_candle, db_session)
     assert result is None
-

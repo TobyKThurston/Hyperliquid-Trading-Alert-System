@@ -1,5 +1,6 @@
 """Unit tests for core.time helpers."""
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 from core.time import from_ms, now_ms, to_ms, utcnow
 
@@ -10,9 +11,9 @@ def test_utcnow_is_naive():
 
 
 def test_utcnow_matches_wall_clock_utc_within_2s():
-    before = datetime.now(timezone.utc).replace(tzinfo=None)
+    before = datetime.now(UTC).replace(tzinfo=None)
     dt = utcnow()
-    after = datetime.now(timezone.utc).replace(tzinfo=None)
+    after = datetime.now(UTC).replace(tzinfo=None)
     assert before <= dt <= after
 
 

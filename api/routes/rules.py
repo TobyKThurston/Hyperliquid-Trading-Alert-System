@@ -1,13 +1,14 @@
 """Rule management endpoints."""
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+
 from uuid import UUID
-from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from api.dependencies import get_db, verify_api_key
-from api.models.rule import RuleCreate, RuleUpdate, RuleResponse, RuleListResponse
+from api.models.rule import RuleCreate, RuleListResponse, RuleResponse, RuleUpdate
 from db.models import Rule
-from core.exceptions import RuleNotFoundError
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
@@ -37,30 +38,30 @@ async def create_rule(
 
 @router.get("", response_model=RuleListResponse)
 async def list_rules(
-    symbol: Optional[str] = Query(None),
-    is_active: Optional[bool] = Query(None),
+    symbol: str | None = Query(None),
+    is_active: bool | None = Query(None),
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_db),
 ) -> RuleListResponse:
     """List alert rules with optional filtering."""
     query = select(Rule)
-    
+
     if symbol:
         query = query.where(Rule.symbol == symbol.upper())
     if is_active is not None:
         query = query.where(Rule.is_active == is_active)
-    
+
     # Get total count
     count_query = select(func.count()).select_from(query.subquery())
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
-    
+
     # Get paginated results
     query = query.order_by(Rule.created_at.desc()).limit(limit).offset(offset)
     result = await db.execute(query)
     rules = result.scalars().all()
-    
+
     return RuleListResponse(
         rules=[RuleResponse.model_validate(rule) for rule in rules],
         total=total,
@@ -75,10 +76,10 @@ async def get_rule(
     """Get a specific rule by ID."""
     result = await db.execute(select(Rule).where(Rule.id == rule_id))
     rule = result.scalar_one_or_none()
-    
+
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
-    
+
     return RuleResponse.model_validate(rule)
 
 
@@ -92,15 +93,15 @@ async def update_rule(
     """Update an existing rule."""
     result = await db.execute(select(Rule).where(Rule.id == rule_id))
     rule = result.scalar_one_or_none()
-    
+
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
-    
+
     # Update fields
     update_data = rule_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(rule, field, value)
-    
+
     await db.commit()
     await db.refresh(rule)
     return RuleResponse.model_validate(rule)
@@ -115,10 +116,9 @@ async def delete_rule(
     """Delete a rule."""
     result = await db.execute(select(Rule).where(Rule.id == rule_id))
     rule = result.scalar_one_or_none()
-    
+
     if not rule:
         raise HTTPException(status_code=404, detail="Rule not found")
-    
+
     await db.delete(rule)
     await db.commit()
-

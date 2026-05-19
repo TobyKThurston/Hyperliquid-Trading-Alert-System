@@ -8,11 +8,11 @@ use-case; we're protecting downstream webhooks, not enforcing billing.
 If Redis is unreachable or disabled, we fail OPEN (log + allow). A
 rate-limit outage should not take down the API.
 """
+
 from __future__ import annotations
 
 import time
 from dataclasses import dataclass
-from typing import Optional
 
 from core.logging import get_logger
 
@@ -29,7 +29,7 @@ class RateLimitResult:
     reset_in: int  # Seconds until the current window resets
 
 
-async def _get_client(redis_url: Optional[str]):
+async def _get_client(redis_url: str | None):
     """Return a cached redis.asyncio client, or None if disabled/unreachable."""
     global _redis_client
     if _redis_client is not None:
@@ -52,14 +52,16 @@ async def _get_client(redis_url: Optional[str]):
 
 
 async def check_rate_limit(
-    redis_url: Optional[str],
+    redis_url: str | None,
     bucket_id: str,
     limit_per_minute: int,
 ) -> RateLimitResult:
     """Check the fixed-window bucket. Fails open on Redis errors."""
     client = await _get_client(redis_url)
     if client is None:
-        return RateLimitResult(allowed=True, limit=limit_per_minute, remaining=limit_per_minute, reset_in=60)
+        return RateLimitResult(
+            allowed=True, limit=limit_per_minute, remaining=limit_per_minute, reset_in=60
+        )
 
     now = int(time.time())
     window = now // 60
@@ -73,7 +75,9 @@ async def check_rate_limit(
             await client.expire(key, 61)
     except Exception as e:
         logger.warn("redis_ratelimit_error_failing_open", error=str(e))
-        return RateLimitResult(allowed=True, limit=limit_per_minute, remaining=limit_per_minute, reset_in=reset_in)
+        return RateLimitResult(
+            allowed=True, limit=limit_per_minute, remaining=limit_per_minute, reset_in=reset_in
+        )
 
     remaining = max(0, limit_per_minute - count)
     return RateLimitResult(

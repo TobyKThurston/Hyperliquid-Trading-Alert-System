@@ -1,8 +1,9 @@
 """Discord webhook dispatcher."""
+
 import httpx
-from datetime import datetime
-from db.models import Alert, Rule
+
 from core.logging import get_logger
+from db.models import Alert, Rule
 
 logger = get_logger(__name__)
 
@@ -22,7 +23,11 @@ async def send_discord_webhook(alert: Alert, rule: Rule) -> bool:
                     {"name": "Symbol", "value": alert.symbol, "inline": True},
                     {"name": "Trigger Value", "value": str(alert.trigger_value), "inline": True},
                     {"name": "Rule Type", "value": alert.rule_type, "inline": True},
-                    {"name": "Time", "value": alert.triggered_at.isoformat() + "Z", "inline": False},
+                    {
+                        "name": "Time",
+                        "value": alert.triggered_at.isoformat() + "Z",
+                        "inline": False,
+                    },
                 ],
             }
         ]
@@ -41,4 +46,3 @@ async def send_discord_webhook(alert: Alert, rule: Rule) -> bool:
             error=str(e),
         )
         return False
-

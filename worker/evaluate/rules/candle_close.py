@@ -1,16 +1,15 @@
 """Candle close rule."""
+
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from worker.evaluate.rules.base import BaseRule
 from worker.ingest.hyperliquid import Candle
-from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Optional
 
 
 class CandleCloseRule(BaseRule):
     """Rule that triggers when candle close meets condition."""
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         """Check if candle close meets condition."""
         value = float(config["value"])
         operator = config["operator"]
@@ -24,4 +23,3 @@ class CandleCloseRule(BaseRule):
                 return close_price
 
         return None
-

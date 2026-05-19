@@ -1,5 +1,4 @@
 """Bollinger Bands rule."""
-from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +23,7 @@ class BollingerBandsRule(BaseRule):
     holds ('break') — callers use cooldown_seconds to throttle.
     """
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         period = int(config.get("period", 20))
         std_dev = float(config.get("std_dev", 2.0))
         band = config["band"]

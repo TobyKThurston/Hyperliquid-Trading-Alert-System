@@ -1,11 +1,14 @@
 """Rule evaluation engine."""
-from sqlalchemy.ext.asyncio import AsyncSession
+
+from datetime import datetime, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from datetime import datetime, timedelta
-from typing import Optional
-from db.models import Rule, Alert
-from worker.ingest.hyperliquid import Candle
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.logging import get_logger
+from core.time import utcnow
+from db.models import Alert, Rule
 from worker.evaluate.rules import (
     BollingerBandsRule,
     CandleCloseRule,
@@ -14,9 +17,7 @@ from worker.evaluate.rules import (
     PriceThresholdRule,
     RSIRule,
 )
-from core.logging import get_logger
-from core.time import utcnow
-from core.exceptions import InvalidRuleConfigError
+from worker.ingest.hyperliquid import Candle
 
 logger = get_logger(__name__)
 
@@ -70,7 +71,7 @@ class RuleEvaluator:
         window_start: datetime,
         window_end: datetime,
         trigger_value: float,
-    ) -> Optional[Alert]:
+    ) -> Alert | None:
         """Create alert record. Returns None if another worker won the race.
 
         Relies on the `uq_alert_window` unique constraint
@@ -100,7 +101,7 @@ class RuleEvaluator:
         await self.db.refresh(alert)
         return alert
 
-    async def evaluate(self, rule: Rule, candle: Candle) -> Optional[Alert]:
+    async def evaluate(self, rule: Rule, candle: Candle) -> Alert | None:
         """Evaluate rule against candle.
 
         Returns Alert if triggered, None otherwise. Enforces cooldown and idempotency.
@@ -142,4 +143,3 @@ class RuleEvaluator:
                 exc_info=True,
             )
             return None
-

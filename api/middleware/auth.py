@@ -11,8 +11,9 @@ Combines auth and rate-limit in one pass so ordering is explicit:
 Raising HTTPException inside BaseHTTPMiddleware doesn't trigger Starlette's
 exception handlers — we return JSONResponse directly instead.
 """
+
 import hashlib
-from typing import Callable
+from collections.abc import Callable
 
 from fastapi import Request
 from fastapi.responses import JSONResponse

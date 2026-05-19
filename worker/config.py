@@ -1,5 +1,4 @@
 """Worker configuration."""
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -26,10 +25,9 @@ class WorkerSettings(BaseSettings):
     ws_heartbeat_timeout: int = 45  # Force reconnect if no WS message for N seconds
 
     @property
-    def symbol_list(self) -> List[str]:
+    def symbol_list(self) -> list[str]:
         """Parse symbols string into list."""
         return [s.strip().upper() for s in self.symbols.split(",") if s.strip()]
 
 
 settings = WorkerSettings()
-

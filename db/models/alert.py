@@ -1,12 +1,15 @@
 """Alert database model."""
-from sqlalchemy import Column, String, DateTime, Integer, Enum as SQLEnum, Numeric, ForeignKey
+
+import uuid
+
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy import Enum as SQLEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from sqlalchemy.schema import UniqueConstraint
-from db.base import Base
-import uuid
 
 from core.time import utcnow
+from db.base import Base
 
 
 class AlertDeliveryStatus:
@@ -40,11 +43,12 @@ class Alert(Base):
     created_at = Column(DateTime, default=utcnow, nullable=False)
 
     # Unique constraint for idempotency
-    __table_args__ = (UniqueConstraint("rule_id", "window_start", "window_end", name="uq_alert_window"),)
+    __table_args__ = (
+        UniqueConstraint("rule_id", "window_start", "window_end", name="uq_alert_window"),
+    )
 
     # Relationships
     rule = relationship("Rule", back_populates="alerts")
     delivery_attempt_records = relationship(
         "AlertDeliveryAttempt", back_populates="alert", cascade="all, delete-orphan"
     )
-

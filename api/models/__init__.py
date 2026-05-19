@@ -1,7 +1,8 @@
 """API models."""
-from api.models.rule import RuleCreate, RuleUpdate, RuleResponse, RuleListResponse
-from api.models.alert import AlertResponse, AlertListResponse
-from api.models.candle import CandleResponse, CandleListResponse
+
+from api.models.alert import AlertListResponse, AlertResponse
+from api.models.candle import CandleListResponse, CandleResponse
+from api.models.rule import RuleCreate, RuleListResponse, RuleResponse, RuleUpdate
 
 __all__ = [
     "RuleCreate",
@@ -13,4 +14,3 @@ __all__ = [
     "CandleResponse",
     "CandleListResponse",
 ]
-

@@ -1,11 +1,13 @@
 """Worker cursor model for persisting ingestion state."""
-from sqlalchemy import Column, String, DateTime
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.schema import UniqueConstraint
-from db.base import Base
+
 import uuid
 
+from sqlalchemy import Column, DateTime, String
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.schema import UniqueConstraint
+
 from core.time import utcnow
+from db.base import Base
 
 
 class WorkerCursor(Base):
@@ -21,4 +23,3 @@ class WorkerCursor(Base):
 
     # Unique constraint: one cursor per worker/symbol
     __table_args__ = (UniqueConstraint("worker_id", "symbol", name="uq_worker_cursor"),)
-

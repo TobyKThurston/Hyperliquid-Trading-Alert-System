@@ -6,6 +6,7 @@ Usage:
 Prints the raw key exactly once. Store it somewhere safe — the DB only
 keeps the SHA-256 hash.
 """
+
 import argparse
 import asyncio
 import hashlib

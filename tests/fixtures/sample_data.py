@@ -1,8 +1,10 @@
 """Sample data fixtures."""
+
 from datetime import timedelta
 from decimal import Decimal
-from db.models import Rule, Alert, Candle
+
 from core.time import utcnow
+from db.models import Alert, Candle, Rule
 
 
 def create_sample_rule():
@@ -44,4 +46,3 @@ def create_sample_candle():
         volume=Decimal("1000"),
         interval_seconds=900,
     )
-

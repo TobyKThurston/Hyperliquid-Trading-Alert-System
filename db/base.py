@@ -1,8 +1,10 @@
 """SQLAlchemy base configuration."""
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
-from sqlalchemy.orm import DeclarativeBase
-from typing import AsyncGenerator
+
 import os
+from collections.abc import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase
 
 
 class Base(DeclarativeBase):
@@ -15,10 +17,12 @@ class Base(DeclarativeBase):
 # Try to import from settings if available, otherwise use env var
 try:
     from api.config import settings as api_settings
+
     DATABASE_URL = api_settings.database_url
 except ImportError:
     try:
         from worker.config import settings as worker_settings
+
         DATABASE_URL = worker_settings.database_url
     except ImportError:
         DATABASE_URL = os.getenv(
@@ -55,4 +59,3 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             raise
         finally:
             await session.close()
-

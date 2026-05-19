@@ -1,5 +1,4 @@
 """API configuration using Pydantic Settings."""
-from typing import List
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -24,9 +23,8 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"  # comma-separated
 
     @property
-    def cors_origin_list(self) -> List[str]:
+    def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
 
 settings = Settings()
-

@@ -1,4 +1,5 @@
 """Unit tests for RSI and Bollinger Bands indicators."""
+
 import math
 
 from worker.evaluate.indicators import calculate_bollinger_bands, calculate_rsi
@@ -28,7 +29,24 @@ def test_rsi_insufficient_data_returns_empty():
 
 def test_rsi_bounded():
     """RSI must always be in [0, 100] for any input."""
-    prices = [100.0, 102.0, 101.0, 103.0, 99.0, 105.0, 97.0, 110.0, 92.0, 115.0, 90.0, 120.0, 88.0, 125.0, 85.0, 130.0]
+    prices = [
+        100.0,
+        102.0,
+        101.0,
+        103.0,
+        99.0,
+        105.0,
+        97.0,
+        110.0,
+        92.0,
+        115.0,
+        90.0,
+        120.0,
+        88.0,
+        125.0,
+        85.0,
+        130.0,
+    ]
     rsi = calculate_rsi(prices, period=7)
     assert len(rsi) > 0
     for v in rsi:

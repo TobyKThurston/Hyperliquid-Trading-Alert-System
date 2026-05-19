@@ -1,19 +1,19 @@
 """Percent move rule."""
+
+from datetime import timedelta
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from db.models import Candle as CandleModel
 from worker.evaluate.rules.base import BaseRule
 from worker.ingest.hyperliquid import Candle
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from datetime import timedelta
-from typing import Optional
-from db.models import Candle as CandleModel
 
 
 class PercentMoveRule(BaseRule):
     """Rule that triggers on percent move within a time window."""
 
-    async def evaluate(
-        self, config: dict, candle: Candle, db: AsyncSession
-    ) -> Optional[float]:
+    async def evaluate(self, config: dict, candle: Candle, db: AsyncSession) -> float | None:
         """Check if percent move exceeds threshold."""
         percent_threshold = float(config["percent_threshold"])
         window_seconds = int(config["window_seconds"])
@@ -45,4 +45,3 @@ class PercentMoveRule(BaseRule):
             return new_price
 
         return None
-

@@ -4,6 +4,7 @@ Keys are stored as SHA-256 hashes — the raw key is shown to the admin
 exactly once at creation time, then discarded. The hash-based lookup means
 a leaked DB dump cannot be replayed directly against the API.
 """
+
 import uuid
 
 from sqlalchemy import Boolean, Column, DateTime, Integer, String

@@ -1,11 +1,13 @@
 """Alert delivery attempt database model."""
-from sqlalchemy import Column, String, DateTime, Integer, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import relationship
-from db.base import Base
+
 import uuid
 
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import relationship
+
 from core.time import utcnow
+from db.base import Base
 
 
 class AlertDeliveryAttempt(Base):
@@ -14,7 +16,9 @@ class AlertDeliveryAttempt(Base):
     __tablename__ = "alert_delivery_attempts"
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    alert_id = Column(UUID(as_uuid=True), ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False)
+    alert_id = Column(
+        UUID(as_uuid=True), ForeignKey("alerts.id", ondelete="CASCADE"), nullable=False
+    )
     attempt_no = Column(Integer, nullable=False)  # 1-indexed attempt number
     status = Column(String, nullable=False)  # "success" or "failed"
     response_code = Column(Integer, nullable=True)  # HTTP status code
@@ -24,4 +28,3 @@ class AlertDeliveryAttempt(Base):
 
     # Relationships
     alert = relationship("Alert", back_populates="delivery_attempt_records")
-

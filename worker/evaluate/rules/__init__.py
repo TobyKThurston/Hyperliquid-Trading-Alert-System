@@ -1,4 +1,5 @@
 """Rule evaluation implementations."""
+
 from worker.evaluate.rules.base import BaseRule
 from worker.evaluate.rules.bollinger import BollingerBandsRule
 from worker.evaluate.rules.candle_close import CandleCloseRule
