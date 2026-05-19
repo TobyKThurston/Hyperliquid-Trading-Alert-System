@@ -5,9 +5,30 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
-Production-grade backend for Hyperliquid price alerts. Streams market data, evaluates user-defined rules, and delivers alerts via Discord and generic webhooks — with database-level idempotency, exponential-backoff retry, and a full delivery-attempt audit trail.
+**A production-grade Python backend that streams live crypto market data, evaluates user-defined trading rules, and delivers alerts reliably — with exactly-once guarantees, automatic retries, and a full audit trail.**
 
-Built to demonstrate the engineering side of trading infrastructure: durability, exactly-once delivery semantics, and observability — not just "if price > X, send a message".
+Streams Hyperliquid market data over WebSocket, evaluates six types of technical-analysis rules, and delivers alerts via Discord and generic webhooks — backed by database-level idempotency, exponential-backoff retry, and per-attempt delivery auditing.
+
+> 💡 **For reviewers:** this is a portfolio project built to show how production trading infrastructure is actually engineered — durability, exactly-once delivery semantics, observability, and testing — not just "if price > X, send a message." Skim **[What This Project Demonstrates](#what-this-project-demonstrates)** for a 30-second overview.
+
+**Tech at a glance:** Python 3.12 · FastAPI · async SQLAlchemy 2.0 · PostgreSQL · Redis · asyncio worker · Docker · GitHub Actions CI · 46 automated tests
+
+---
+
+## What This Project Demonstrates
+
+A quick map of the engineering competencies this codebase shows in practice:
+
+| Competency | Where it shows up |
+| ---------- | ----------------- |
+| **Backend API design** | 10-endpoint REST API with FastAPI, Pydantic v2 validation, and auto-generated OpenAPI docs |
+| **Distributed-systems thinking** | Exactly-once delivery via a Postgres unique constraint — correct even with concurrent workers |
+| **Resilience & fault tolerance** | Exponential-backoff retries, crash-safe retry state, WebSocket auto-reconnect with gap-backfill, fail-open rate limiting |
+| **Async programming** | Full `asyncio` worker pipeline (ingest → evaluate → dispatch) and async SQLAlchemy throughout |
+| **Data engineering** | Streaming market-data ingestion, OHLCV storage, and technical indicators (RSI, MACD, Bollinger Bands) computed from scratch |
+| **Security** | SHA-256-hashed API keys, secret handling, per-key rate limiting |
+| **Testing & CI** | 46 unit + integration tests, in-memory SQLite, automated lint + test on every push |
+| **Operational maturity** | Structured JSON logging, health/metrics endpoints, Docker Compose, migrations, runbook docs |
 
 ---
 
